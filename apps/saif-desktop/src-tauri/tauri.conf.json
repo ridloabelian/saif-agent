@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Saif Desktop",
+  "version": "0.1.0",
+  "identifier": "id.co.saif.desktop",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Saif Agent Desktop",
+        "width": 1280,
+        "height": 840
+      }
+    ]
+  }
+}

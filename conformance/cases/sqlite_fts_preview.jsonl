@@ -1,0 +1,5 @@
+{"op": "session_db_fts", "fts_tool_prefix_chars": 8192, "hits_user_count": 2, "hits_tail_count": 0, "session_preview": null}
+{"op": "shape_preview", "input": "Hello world", "expected": "Hello world"}
+{"op": "shape_preview", "input": "   First line\nSecond line   ", "expected": "First line Second line"}
+{"op": "shape_preview", "input": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "expected": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA..."}
+{"op": "shape_preview", "input": "/skill git-sync please rebase my branch cleanly", "expected": "/skill git-sync please rebase my branch cleanly"}

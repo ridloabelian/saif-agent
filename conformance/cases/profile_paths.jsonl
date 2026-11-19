@@ -1,0 +1,6 @@
+{"name": "empty_dir", "has_identity": false, "has_servable_identity": false, "is_deleted": false, "is_live": false}
+{"name": "empty_env_only", "has_identity": true, "has_servable_identity": false, "is_deleted": false, "is_live": true}
+{"name": "non_empty_env", "has_identity": true, "has_servable_identity": true, "is_deleted": false, "is_live": true}
+{"name": "config_yaml", "has_identity": true, "has_servable_identity": true, "is_deleted": false, "is_live": true}
+{"name": "state_db_only", "has_identity": true, "has_servable_identity": true, "is_deleted": false, "is_live": true}
+{"name": "tombstoned", "has_identity": true, "has_servable_identity": true, "is_deleted": true, "is_live": false}

@@ -1,0 +1,3376 @@
+{
+  "schema": "rust-anything/analyze@1",
+  "language": "python",
+  "summary": {
+    "packages": 1,
+    "source_files": 87,
+    "test_files": 0,
+    "ui_files": 0,
+    "loc": 46465,
+    "units": 12,
+    "ready": 2,
+    "caution": 7,
+    "blocked": 3,
+    "keep": 0,
+    "parse_errors": 0
+  },
+  "packages": [
+    {
+      "name": "hermes-agent",
+      "dir": "",
+      "order": 1,
+      "runtime": "portable",
+      "workspace_deps": [],
+      "test_files": 0,
+      "units": [
+        "acp_adapter/",
+        "agent/",
+        "cron/",
+        "gateway/",
+        "hermes_constants.py",
+        "hermes_state.py",
+        "hermes_state_common.py",
+        "hermes_state_fts.py",
+        "hermes_state_search.py",
+        "providers/",
+        "tools/",
+        "toolsets.py"
+      ]
+    }
+  ],
+  "units": [
+    {
+      "id": "acp_adapter/",
+      "package": "hermes-agent",
+      "files": [
+        "acp_adapter/__init__.py",
+        "acp_adapter/__main__.py",
+        "acp_adapter/auth.py",
+        "acp_adapter/catalog.py",
+        "acp_adapter/commands.py",
+        "acp_adapter/content.py",
+        "acp_adapter/edit_approval.py",
+        "acp_adapter/elicitation.py",
+        "acp_adapter/entry.py",
+        "acp_adapter/events.py",
+        "acp_adapter/gateway_commands.py",
+        "acp_adapter/gateway_media.py",
+        "acp_adapter/gateway_reply.py",
+        "acp_adapter/gateway_server.py",
+        "acp_adapter/gateway_session_meta.py",
+        "acp_adapter/model_catalog.py",
+        "acp_adapter/modes.py",
+        "acp_adapter/permissions.py",
+        "acp_adapter/provenance.py",
+        "acp_adapter/server.py",
+        "acp_adapter/session.py",
+        "acp_adapter/tools.py"
+      ],
+      "loc": 5669,
+      "wave": 7,
+      "readiness": 0,
+      "status": "caution",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 53,
+          "samples": [
+            "acp_adapter/commands.py:40",
+            "acp_adapter/commands.py:40",
+            "acp_adapter/commands.py:166"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 47,
+          "samples": [
+            "acp_adapter/commands.py:180",
+            "acp_adapter/commands.py:297",
+            "acp_adapter/content.py:92"
+          ]
+        },
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 570,
+          "samples": [
+            "acp_adapter/commands.py:80",
+            "acp_adapter/commands.py:87",
+            "acp_adapter/commands.py:87"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 318,
+          "samples": [
+            "acp_adapter/auth.py:22",
+            "acp_adapter/auth.py:23",
+            "acp_adapter/catalog.py:11"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 12,
+          "samples": [
+            "acp_adapter/server.py:135",
+            "acp_adapter/server.py:135",
+            "acp_adapter/server.py:139"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 5,
+          "samples": [
+            "acp_adapter/entry.py:45",
+            "acp_adapter/gateway_commands.py:17",
+            "acp_adapter/gateway_server.py:67"
+          ]
+        },
+        {
+          "risk": "concurrency",
+          "severity": "medium",
+          "count": 5,
+          "samples": [
+            "acp_adapter/gateway_server.py:1219",
+            "acp_adapter/gateway_server.py:1223",
+            "acp_adapter/server.py:47"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 171,
+          "samples": [
+            "acp_adapter/auth.py:18",
+            "acp_adapter/catalog.py:32",
+            "acp_adapter/commands.py:115"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 102,
+          "samples": [
+            "acp_adapter/commands.py:17",
+            "acp_adapter/commands.py:48",
+            "acp_adapter/commands.py:92"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "agent/",
+        "hermes_constants.py",
+        "hermes_state.py",
+        "tools/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "acp",
+        "hermes-bootstrap",
+        "hermes-cli",
+        "hermes-state-local",
+        "hermes-state-registry",
+        "model-tools",
+        "plugins",
+        "pm",
+        "run-agent",
+        "tui-gateway"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 3.9,
+      "priority": 13,
+      "exports": 65,
+      "bridgeable": 51,
+      "notes": [
+        "10 PyPI dependencies not in the crate table: check them by hand.",
+        "33 imports use aliases or virtual modules and were not followed.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    },
+    {
+      "id": "agent/",
+      "package": "hermes-agent",
+      "files": [
+        "agent/context_compressor.py",
+        "agent/conversation_loop.py",
+        "agent/prompt_builder.py",
+        "agent/skill_utils.py"
+      ],
+      "loc": 9097,
+      "wave": 2,
+      "readiness": 0,
+      "status": "caution",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 90,
+          "samples": [
+            "agent/context_compressor.py:197",
+            "agent/context_compressor.py:545",
+            "agent/context_compressor.py:557"
+          ]
+        },
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 74,
+          "samples": [
+            "agent/context_compressor.py:240",
+            "agent/context_compressor.py:245",
+            "agent/context_compressor.py:500"
+          ]
+        },
+        {
+          "risk": "dynamic-regex",
+          "severity": "high",
+          "count": 7,
+          "samples": [
+            "agent/context_compressor.py:176",
+            "agent/context_compressor.py:870",
+            "agent/context_compressor.py:871"
+          ]
+        },
+        {
+          "risk": "regex-syntax",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "agent/context_compressor.py:1162",
+            "agent/skill_utils.py:804"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 435,
+          "samples": [
+            "agent/context_compressor.py:86",
+            "agent/context_compressor.py:111",
+            "agent/context_compressor.py:151"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 6,
+          "samples": [
+            "agent/context_compressor.py:88",
+            "agent/context_compressor.py:88",
+            "agent/skill_utils.py:661"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 6,
+          "samples": [
+            "agent/context_compressor.py:1300",
+            "agent/context_compressor.py:1305",
+            "agent/context_compressor.py:1315"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "agent/context_compressor.py:391",
+            "agent/context_compressor.py:2149"
+          ]
+        },
+        {
+          "risk": "concurrency",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "agent/prompt_builder.py:73"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 113,
+          "samples": [
+            "agent/context_compressor.py:87",
+            "agent/context_compressor.py:150",
+            "agent/context_compressor.py:226"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 39,
+          "samples": [
+            "agent/context_compressor.py:1986",
+            "agent/context_compressor.py:2674",
+            "agent/context_compressor.py:2685"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "hermes_constants.py",
+        "tools/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "hermes-cli",
+        "hermes-logging",
+        "hermes-platform",
+        "hermes-time",
+        "hermes-yaml",
+        "run-agent",
+        "tui-gateway",
+        "utils"
+      ],
+      "direct_tests": 0,
+      "fan_in": 5,
+      "density": 4.4,
+      "priority": 14,
+      "exports": 68,
+      "bridgeable": 63,
+      "notes": [
+        "8 PyPI dependencies not in the crate table: check them by hand.",
+        "120 imports use aliases or virtual modules and were not followed.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    },
+    {
+      "id": "cron/",
+      "package": "hermes-agent",
+      "files": [
+        "cron/__init__.py",
+        "cron/blueprint_catalog.py",
+        "cron/blueprint_plugins.py",
+        "cron/bot_chat_legacy.py",
+        "cron/constants.py",
+        "cron/delivery_outcome.py",
+        "cron/delivery_queue.py",
+        "cron/env_settings.py",
+        "cron/execution_identity.py",
+        "cron/executions.py",
+        "cron/incidents.py",
+        "cron/job_definition.py",
+        "cron/jobs.py",
+        "cron/jobs_invariants.py",
+        "cron/jobs_model_pin.py",
+        "cron/lifecycle_guard.py",
+        "cron/monitor.py",
+        "cron/notepad.py",
+        "cron/occurrences.py",
+        "cron/quota_hold.py",
+        "cron/scheduler.py",
+        "cron/scheduler_authority.py",
+        "cron/scheduler_bookkeeping.py",
+        "cron/scheduler_delivery.py",
+        "cron/scheduler_delivery_origin.py",
+        "cron/scheduler_detached_worker.py",
+        "cron/scheduler_diagnostics.py",
+        "cron/scheduler_failure_copy.py",
+        "cron/scheduler_gateway_gate.py",
+        "cron/scheduler_liveness.py",
+        "cron/scheduler_ownership.py",
+        "cron/scheduler_preflight.py",
+        "cron/scheduler_prompt.py",
+        "cron/scheduler_provider.py",
+        "cron/scheduler_script.py",
+        "cron/scheduler_thread.py",
+        "cron/scheduler_tick.py",
+        "cron/scheduler_worker_env.py",
+        "cron/scheduler_worker_failure.py",
+        "cron/scheduler_worktree_maintenance.py",
+        "cron/store_health.py",
+        "cron/suggestion_catalog.py",
+        "cron/suggestions.py",
+        "cron/unreachable_retry.py",
+        "cron/worker_bootstrap.py"
+      ],
+      "loc": 16622,
+      "wave": 3,
+      "readiness": 0,
+      "status": "caution",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 153,
+          "samples": [
+            "cron/blueprint_catalog.py:35",
+            "cron/blueprint_catalog.py:35",
+            "cron/blueprint_catalog.py:754"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 58,
+          "samples": [
+            "cron/incidents.py:128",
+            "cron/incidents.py:133",
+            "cron/incidents.py:134"
+          ]
+        },
+        {
+          "risk": "dynamic-regex",
+          "severity": "high",
+          "count": 11,
+          "samples": [
+            "cron/incidents.py:116",
+            "cron/incidents.py:116",
+            "cron/incidents.py:149"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 328,
+          "samples": [
+            "cron/blueprint_plugins.py:34",
+            "cron/blueprint_plugins.py:40",
+            "cron/blueprint_plugins.py:40"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 64,
+          "samples": [
+            "cron/delivery_queue.py:162",
+            "cron/delivery_queue.py:162",
+            "cron/executions.py:106"
+          ]
+        },
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 27,
+          "samples": [
+            "cron/scheduler_authority.py:80",
+            "cron/scheduler_authority.py:85",
+            "cron/scheduler_authority.py:85"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 12,
+          "samples": [
+            "cron/blueprint_catalog.py:30",
+            "cron/jobs.py:1908",
+            "cron/lifecycle_guard.py:24"
+          ]
+        },
+        {
+          "risk": "concurrency",
+          "severity": "medium",
+          "count": 7,
+          "samples": [
+            "cron/scheduler.py:1453",
+            "cron/scheduler.py:2029",
+            "cron/scheduler.py:4100"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "cron/jobs.py:725",
+            "cron/jobs.py:944",
+            "cron/scheduler.py:1271"
+          ]
+        },
+        {
+          "risk": "integer-semantics",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "cron/scheduler_provider.py:35",
+            "cron/store_health.py:31"
+          ]
+        },
+        {
+          "risk": "reflection",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "cron/jobs.py:1824"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 450,
+          "samples": [
+            "cron/blueprint_catalog.py:63",
+            "cron/blueprint_catalog.py:703",
+            "cron/blueprint_catalog.py:706"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 44,
+          "samples": [
+            "cron/jobs.py:189",
+            "cron/jobs.py:265",
+            "cron/jobs.py:1782"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "agent/",
+        "hermes_constants.py",
+        "toolsets.py"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "croniter",
+        "hermes-bootstrap",
+        "hermes-cli",
+        "hermes-dir-acl",
+        "hermes-logging",
+        "hermes-state-errors",
+        "hermes-state-registry",
+        "hermes-time",
+        "plugins",
+        "pm",
+        "run-agent",
+        "tui-gateway",
+        "utils"
+      ],
+      "direct_tests": 0,
+      "fan_in": 1,
+      "density": 2.1,
+      "priority": 9,
+      "exports": 247,
+      "bridgeable": 222,
+      "notes": [
+        "13 PyPI dependencies not in the crate table: check them by hand.",
+        "111 imports use aliases or virtual modules and were not followed.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    },
+    {
+      "id": "gateway/",
+      "package": "hermes-agent",
+      "files": [
+        "gateway/run.py",
+        "gateway/session_identity.py"
+      ],
+      "loc": 4770,
+      "wave": 7,
+      "readiness": 0,
+      "status": "blocked",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 47,
+          "samples": [
+            "gateway/run.py:240",
+            "gateway/run.py:356",
+            "gateway/run.py:363"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 22,
+          "samples": [
+            "gateway/run.py:454",
+            "gateway/run.py:455",
+            "gateway/run.py:612"
+          ]
+        },
+        {
+          "risk": "dynamic-regex",
+          "severity": "high",
+          "count": 13,
+          "samples": [
+            "gateway/run.py:77",
+            "gateway/run.py:90",
+            "gateway/run.py:91"
+          ]
+        },
+        {
+          "risk": "regex-syntax",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "gateway/run.py:74"
+          ]
+        },
+        {
+          "risk": "dynamic-code",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "gateway/run.py:3299"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 284,
+          "samples": [
+            "gateway/run.py:117",
+            "gateway/run.py:119",
+            "gateway/run.py:120"
+          ]
+        },
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 55,
+          "samples": [
+            "gateway/run.py:224",
+            "gateway/run.py:264",
+            "gateway/run.py:264"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 6,
+          "samples": [
+            "gateway/run.py:1822",
+            "gateway/run.py:1822",
+            "gateway/run.py:1835"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 6,
+          "samples": [
+            "gateway/run.py:2991",
+            "gateway/run.py:2991",
+            "gateway/run.py:2991"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "gateway/run.py:1633",
+            "gateway/run.py:1638",
+            "gateway/run.py:3329"
+          ]
+        },
+        {
+          "risk": "integer-semantics",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "gateway/run.py:3229"
+          ]
+        },
+        {
+          "risk": "concurrency",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "gateway/run.py:4645"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 120,
+          "samples": [
+            "gateway/run.py:7",
+            "gateway/run.py:11",
+            "gateway/run.py:138"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 12,
+          "samples": [
+            "gateway/run.py:108",
+            "gateway/run.py:578",
+            "gateway/run.py:2598"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "agent/",
+        "cron/",
+        "hermes_constants.py",
+        "hermes_state.py"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "hermes-bootstrap",
+        "hermes-cli",
+        "hermes-logging",
+        "hermes-startup-watchdog",
+        "hermes-state-registry",
+        "hermes-time",
+        "model-tools",
+        "mutagen",
+        "plugins",
+        "pm",
+        "run-agent",
+        "tui-gateway"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 2.1,
+      "priority": 9,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "Uses dynamic code (eval, new Function or computed imports).",
+        "12 PyPI dependencies not in the crate table: check them by hand.",
+        "115 imports use aliases or virtual modules and were not followed.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    },
+    {
+      "id": "hermes_constants.py",
+      "package": "hermes-agent",
+      "files": [
+        "hermes_constants.py"
+      ],
+      "loc": 1188,
+      "wave": 0,
+      "readiness": 0,
+      "status": "caution",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 16,
+          "samples": [
+            "hermes_constants.py:292",
+            "hermes_constants.py:292",
+            "hermes_constants.py:745"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 4,
+          "samples": [
+            "hermes_constants.py:137",
+            "hermes_constants.py:310",
+            "hermes_constants.py:1127"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 22,
+          "samples": [
+            "hermes_constants.py:150",
+            "hermes_constants.py:910",
+            "hermes_constants.py:926"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 71,
+          "samples": [
+            "hermes_constants.py:18",
+            "hermes_constants.py:32",
+            "hermes_constants.py:32"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 29,
+          "samples": [
+            "hermes_constants.py:76",
+            "hermes_constants.py:92",
+            "hermes_constants.py:103"
+          ]
+        }
+      ],
+      "internal_deps": [],
+      "workspace_deps": [],
+      "external_deps": [
+        "hermes-cli",
+        "hermes-constants-scratch",
+        "hermes-constants-scratch-detach",
+        "hermes-dir-acl",
+        "hermes-platform",
+        "pm"
+      ],
+      "direct_tests": 0,
+      "fan_in": 9,
+      "density": 3.3,
+      "priority": 12,
+      "exports": 70,
+      "bridgeable": 70,
+      "notes": [
+        "6 PyPI dependencies not in the crate table: check them by hand.",
+        "Leaf: imports no other unit.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    },
+    {
+      "id": "hermes_state.py",
+      "package": "hermes-agent",
+      "files": [
+        "hermes_state.py"
+      ],
+      "loc": 1592,
+      "wave": 6,
+      "readiness": 0,
+      "status": "caution",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 4,
+          "samples": [
+            "hermes_state.py:174",
+            "hermes_state.py:174",
+            "hermes_state.py:315"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "hermes_state.py:1210"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 37,
+          "samples": [
+            "hermes_state.py:269",
+            "hermes_state.py:271",
+            "hermes_state.py:315"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 6,
+          "samples": [
+            "hermes_state.py:941",
+            "hermes_state.py:941",
+            "hermes_state.py:963"
+          ]
+        },
+        {
+          "risk": "async",
+          "severity": "medium",
+          "count": 3,
+          "samples": [
+            "hermes_state.py:1730",
+            "hermes_state.py:1731",
+            "hermes_state.py:1731"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 3,
+          "samples": [
+            "hermes_state.py:116",
+            "hermes_state.py:130",
+            "hermes_state.py:463"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "hermes_state.py:1058",
+            "hermes_state.py:1060"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 70,
+          "samples": [
+            "hermes_state.py:85",
+            "hermes_state.py:97",
+            "hermes_state.py:154"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 4,
+          "samples": [
+            "hermes_state.py:268",
+            "hermes_state.py:268",
+            "hermes_state.py:582"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "hermes_constants.py",
+        "hermes_state_common.py",
+        "hermes_state_fts.py",
+        "hermes_state_search.py"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "hermes-cli",
+        "hermes-dir-acl",
+        "hermes-state-api-content",
+        "hermes-state-compression",
+        "hermes-state-coverage",
+        "hermes-state-dbfile",
+        "hermes-state-errors",
+        "hermes-state-gateway",
+        "hermes-state-guard",
+        "hermes-state-health",
+        "hermes-state-holders",
+        "hermes-state-lockguard",
+        "hermes-state-lockowners",
+        "hermes-state-maintenance",
+        "hermes-state-messages",
+        "hermes-state-pidns",
+        "hermes-state-portability",
+        "hermes-state-profile-repair",
+        "hermes-state-prune-rewrite",
+        "hermes-state-readpool",
+        "hermes-state-registry",
+        "hermes-state-repair",
+        "hermes-state-rewind",
+        "hermes-state-schema",
+        "hermes-state-sessions",
+        "hermes-state-telegram",
+        "hermes-state-titles",
+        "hermes-state-usage",
+        "hermes-state-user-copy",
+        "hermes-state-wal",
+        "psutil"
+      ],
+      "direct_tests": 0,
+      "fan_in": 2,
+      "density": 1.2,
+      "priority": 7,
+      "exports": 8,
+      "bridgeable": 4,
+      "notes": [
+        "31 PyPI dependencies not in the crate table: check them by hand.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    },
+    {
+      "id": "hermes_state_common.py",
+      "package": "hermes-agent",
+      "files": [
+        "hermes_state_common.py"
+      ],
+      "loc": 1321,
+      "wave": 3,
+      "readiness": 12,
+      "status": "caution",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 6,
+          "samples": [
+            "hermes_state_common.py:184",
+            "hermes_state_common.py:184",
+            "hermes_state_common.py:201"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "hermes_state_common.py:157",
+            "hermes_state_common.py:408"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 24,
+          "samples": [
+            "hermes_state_common.py:205",
+            "hermes_state_common.py:211",
+            "hermes_state_common.py:338"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 8,
+          "samples": [
+            "hermes_state_common.py:408",
+            "hermes_state_common.py:408",
+            "hermes_state_common.py:1439"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 17,
+          "samples": [
+            "hermes_state_common.py:47",
+            "hermes_state_common.py:341",
+            "hermes_state_common.py:424"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 3,
+          "samples": [
+            "hermes_state_common.py:184",
+            "hermes_state_common.py:201",
+            "hermes_state_common.py:1355"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "agent/",
+        "hermes_constants.py"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "hermes-cli",
+        "hermes-state-keys",
+        "hermes-state-pidns"
+      ],
+      "direct_tests": 0,
+      "fan_in": 3,
+      "density": 0.9,
+      "priority": 13,
+      "exports": 9,
+      "bridgeable": 8,
+      "notes": [
+        "3 PyPI dependencies not in the crate table: check them by hand.",
+        "1 imports use aliases or virtual modules and were not followed.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    },
+    {
+      "id": "hermes_state_fts.py",
+      "package": "hermes-agent",
+      "files": [
+        "hermes_state_fts.py"
+      ],
+      "loc": 517,
+      "wave": 4,
+      "readiness": 62,
+      "status": "ready",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 4,
+          "samples": [
+            "hermes_state_fts.py:145",
+            "hermes_state_fts.py:146",
+            "hermes_state_fts.py:147"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 4,
+          "samples": [
+            "hermes_state_fts.py:327",
+            "hermes_state_fts.py:352",
+            "hermes_state_fts.py:516"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 10,
+          "samples": [
+            "hermes_state_fts.py:119",
+            "hermes_state_fts.py:121",
+            "hermes_state_fts.py:358"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 2,
+          "samples": [
+            "hermes_state_fts.py:464",
+            "hermes_state_fts.py:464"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "hermes_constants.py",
+        "hermes_state_common.py"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "hermes-state-errors"
+      ],
+      "direct_tests": 0,
+      "fan_in": 2,
+      "density": 3.7,
+      "priority": 48,
+      "exports": 8,
+      "bridgeable": 8,
+      "notes": [
+        "1 PyPI dependencies not in the crate table: check them by hand.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    },
+    {
+      "id": "hermes_state_search.py",
+      "package": "hermes-agent",
+      "files": [
+        "hermes_state_search.py"
+      ],
+      "loc": 1412,
+      "wave": 5,
+      "readiness": 9,
+      "status": "caution",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 8,
+          "samples": [
+            "hermes_state_search.py:136",
+            "hermes_state_search.py:136",
+            "hermes_state_search.py:137"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 6,
+          "samples": [
+            "hermes_state_search.py:1005",
+            "hermes_state_search.py:1017",
+            "hermes_state_search.py:1231"
+          ]
+        },
+        {
+          "risk": "dynamic-regex",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "hermes_state_search.py:134"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 27,
+          "samples": [
+            "hermes_state_search.py:176",
+            "hermes_state_search.py:181",
+            "hermes_state_search.py:231"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "hermes_state_search.py:45",
+            "hermes_state_search.py:64"
+          ]
+        },
+        {
+          "risk": "concurrency",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "hermes_state_search.py:110",
+            "hermes_state_search.py:800"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 26,
+          "samples": [
+            "hermes_state_search.py:125",
+            "hermes_state_search.py:239",
+            "hermes_state_search.py:241"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 4,
+          "samples": [
+            "hermes_state_search.py:137",
+            "hermes_state_search.py:1259",
+            "hermes_state_search.py:1282"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "agent/",
+        "hermes_state_common.py",
+        "hermes_state_fts.py"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "hermes-state-errors"
+      ],
+      "direct_tests": 0,
+      "fan_in": 1,
+      "density": 5.3,
+      "priority": 20,
+      "exports": 1,
+      "bridgeable": 1,
+      "notes": [
+        "1 PyPI dependencies not in the crate table: check them by hand.",
+        "1 imports use aliases or virtual modules and were not followed.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    },
+    {
+      "id": "providers/",
+      "package": "hermes-agent",
+      "files": [
+        "providers/__init__.py",
+        "providers/base.py"
+      ],
+      "loc": 1364,
+      "wave": 1,
+      "readiness": 23,
+      "status": "blocked",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 4,
+          "samples": [
+            "providers/__init__.py:367",
+            "providers/__init__.py:387",
+            "providers/__init__.py:640"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "providers/__init__.py:588"
+          ]
+        },
+        {
+          "risk": "dynamic-code",
+          "severity": "high",
+          "count": 1,
+          "samples": [
+            "providers/__init__.py:888"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 10,
+          "samples": [
+            "providers/__init__.py:128",
+            "providers/__init__.py:234",
+            "providers/__init__.py:246"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 1,
+          "samples": [
+            "providers/base.py:45"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 52,
+          "samples": [
+            "providers/__init__.py:60",
+            "providers/__init__.py:86",
+            "providers/__init__.py:102"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 24,
+          "samples": [
+            "providers/__init__.py:131",
+            "providers/__init__.py:194",
+            "providers/__init__.py:389"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "hermes_constants.py"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "hermes-cli",
+        "utils"
+      ],
+      "direct_tests": 0,
+      "fan_in": 0,
+      "density": 1.8,
+      "priority": 20,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "Uses dynamic code (eval, new Function or computed imports).",
+        "2 PyPI dependencies not in the crate table: check them by hand.",
+        "6 imports use aliases or virtual modules and were not followed.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    },
+    {
+      "id": "tools/",
+      "package": "hermes-agent",
+      "files": [
+        "tools/escape_drift_autocorrect.py",
+        "tools/file_operations_common.py",
+        "tools/fuzzy_match.py",
+        "tools/patch_parser.py",
+        "tools/registry.py",
+        "tools/threat_patterns.py"
+      ],
+      "loc": 2481,
+      "wave": 1,
+      "readiness": 0,
+      "status": "blocked",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 43,
+          "samples": [
+            "tools/file_operations_common.py:237",
+            "tools/file_operations_common.py:267",
+            "tools/fuzzy_match.py:49"
+          ]
+        },
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 20,
+          "samples": [
+            "tools/fuzzy_match.py:242",
+            "tools/fuzzy_match.py:302",
+            "tools/fuzzy_match.py:302"
+          ]
+        },
+        {
+          "risk": "dynamic-regex",
+          "severity": "high",
+          "count": 4,
+          "samples": [
+            "tools/escape_drift_autocorrect.py:60",
+            "tools/fuzzy_match.py:179",
+            "tools/fuzzy_match.py:179"
+          ]
+        },
+        {
+          "risk": "dynamic-code",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "tools/registry.py:133",
+            "tools/registry.py:171"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 43,
+          "samples": [
+            "tools/file_operations_common.py:93",
+            "tools/file_operations_common.py:163",
+            "tools/fuzzy_match.py:189"
+          ]
+        },
+        {
+          "risk": "class-inheritance",
+          "severity": "medium",
+          "count": 3,
+          "samples": [
+            "tools/escape_drift_autocorrect.py:22",
+            "tools/patch_parser.py:20",
+            "tools/patch_parser.py:269"
+          ]
+        },
+        {
+          "risk": "generators",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "tools/registry.py:35",
+            "tools/registry.py:35"
+          ]
+        },
+        {
+          "risk": "division-semantics",
+          "severity": "medium",
+          "count": 2,
+          "samples": [
+            "tools/escape_drift_autocorrect.py:28",
+            "tools/escape_drift_autocorrect.py:32"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 34,
+          "samples": [
+            "tools/escape_drift_autocorrect.py:52",
+            "tools/escape_drift_autocorrect.py:117",
+            "tools/file_operations_common.py:288"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 12,
+          "samples": [
+            "tools/registry.py:228",
+            "tools/registry.py:228",
+            "tools/registry.py:232"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "hermes_constants.py",
+        "toolsets.py"
+      ],
+      "workspace_deps": [],
+      "external_deps": [
+        "hermes-cli",
+        "model-tools",
+        "utils"
+      ],
+      "direct_tests": 0,
+      "fan_in": 3,
+      "density": 6.1,
+      "priority": 17,
+      "exports": 0,
+      "bridgeable": 0,
+      "notes": [
+        "Uses dynamic code (eval, new Function or computed imports).",
+        "3 PyPI dependencies not in the crate table: check them by hand.",
+        "5 imports use aliases or virtual modules and were not followed.",
+        "Import cycle with toolsets.py: port them together.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    },
+    {
+      "id": "toolsets.py",
+      "package": "hermes-agent",
+      "files": [
+        "toolsets.py"
+      ],
+      "loc": 432,
+      "wave": 1,
+      "readiness": 51,
+      "status": "ready",
+      "bridge": "pyo3",
+      "platforms": [],
+      "risks": [
+        {
+          "risk": "unordered-iteration",
+          "severity": "high",
+          "count": 24,
+          "samples": [
+            "toolsets.py:68",
+            "toolsets.py:68",
+            "toolsets.py:144"
+          ]
+        },
+        {
+          "risk": "string-offsets",
+          "severity": "high",
+          "count": 2,
+          "samples": [
+            "toolsets.py:168",
+            "toolsets.py:348"
+          ]
+        },
+        {
+          "risk": "dynamic-typing",
+          "severity": "medium",
+          "count": 6,
+          "samples": [
+            "toolsets.py:47",
+            "toolsets.py:52",
+            "toolsets.py:261"
+          ]
+        },
+        {
+          "risk": "exceptions",
+          "severity": "low",
+          "count": 4,
+          "samples": [
+            "toolsets.py:254",
+            "toolsets.py:263",
+            "toolsets.py:349"
+          ]
+        },
+        {
+          "risk": "number-semantics",
+          "severity": "low",
+          "count": 4,
+          "samples": [
+            "toolsets.py:296",
+            "toolsets.py:439",
+            "toolsets.py:446"
+          ]
+        }
+      ],
+      "internal_deps": [
+        "tools/"
+      ],
+      "workspace_deps": [],
+      "external_deps": [],
+      "direct_tests": 0,
+      "fan_in": 2,
+      "density": 4.6,
+      "priority": 45,
+      "exports": 12,
+      "bridgeable": 12,
+      "notes": [
+        "4 imports use aliases or virtual modules and were not followed.",
+        "Import cycle with tools/: port them together.",
+        "No tests found: write characterization tests against the original code first."
+      ]
+    }
+  ],
+  "start_here": [
+    "hermes_state_fts.py",
+    "toolsets.py",
+    "hermes_state_search.py",
+    "agent/",
+    "hermes_state_common.py",
+    "acp_adapter/",
+    "hermes_constants.py",
+    "cron/",
+    "hermes_state.py"
+  ],
+  "dependencies": [
+    {
+      "name": "hermes-cli",
+      "used_by": 9,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-errors",
+      "used_by": 4,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-registry",
+      "used_by": 4,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "pm",
+      "used_by": 4,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "run-agent",
+      "used_by": 4,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "tui-gateway",
+      "used_by": 4,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "utils",
+      "used_by": 4,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-bootstrap",
+      "used_by": 3,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-dir-acl",
+      "used_by": 3,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-logging",
+      "used_by": 3,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-time",
+      "used_by": 3,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "model-tools",
+      "used_by": 3,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "plugins",
+      "used_by": 3,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-platform",
+      "used_by": 2,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-pidns",
+      "used_by": 2,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "acp",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "croniter",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-constants-scratch",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-constants-scratch-detach",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-startup-watchdog",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-api-content",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-compression",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-coverage",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-dbfile",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-gateway",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-guard",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-health",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-holders",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-keys",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-local",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-lockguard",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-lockowners",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-maintenance",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-messages",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-portability",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-profile-repair",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-prune-rewrite",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-readpool",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-repair",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-rewind",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-schema",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-sessions",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-telegram",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-titles",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-usage",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-user-copy",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-state-wal",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "hermes-yaml",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "mutagen",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    },
+    {
+      "name": "psutil",
+      "used_by": 1,
+      "crates": null,
+      "fit": "unknown",
+      "note": ""
+    }
+  ],
+  "whole_app": {
+    "shape": "cli",
+    "entry_points": [
+      {
+        "kind": "cli",
+        "path": "hermes_cli.main:main",
+        "name": "hermes",
+        "evidence": "pyproject.toml scripts"
+      },
+      {
+        "kind": "cli",
+        "path": "agent.legacy_cli:main",
+        "name": "hermes-agent",
+        "evidence": "pyproject.toml scripts"
+      },
+      {
+        "kind": "cli",
+        "path": "acp_adapter.entry:main",
+        "name": "hermes-acp",
+        "evidence": "pyproject.toml scripts"
+      },
+      {
+        "kind": "cli",
+        "path": "acp_adapter/entry.py",
+        "evidence": "`if __name__ == \"__main__\"` at acp_adapter/entry.py:224"
+      },
+      {
+        "kind": "cli",
+        "path": "cron/scheduler.py",
+        "evidence": "`if __name__ == \"__main__\"` at cron/scheduler.py:4402"
+      },
+      {
+        "kind": "cli",
+        "path": "gateway/run.py",
+        "evidence": "`if __name__ == \"__main__\"` at gateway/run.py:5229"
+      }
+    ],
+    "dependencies": [
+      {
+        "name": "fastapi",
+        "declared": true,
+        "used_by": 0,
+        "crates": "-",
+        "fit": "none",
+        "note": "Web framework: keep the app in Python."
+      },
+      {
+        "name": "hermes-cli",
+        "declared": false,
+        "used_by": 9,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-errors",
+        "declared": false,
+        "used_by": 4,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-registry",
+        "declared": false,
+        "used_by": 4,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "pm",
+        "declared": false,
+        "used_by": 4,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "run-agent",
+        "declared": false,
+        "used_by": 4,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "tui-gateway",
+        "declared": false,
+        "used_by": 4,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "utils",
+        "declared": false,
+        "used_by": 4,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-bootstrap",
+        "declared": false,
+        "used_by": 3,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-dir-acl",
+        "declared": false,
+        "used_by": 3,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-logging",
+        "declared": false,
+        "used_by": 3,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-time",
+        "declared": false,
+        "used_by": 3,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "model-tools",
+        "declared": false,
+        "used_by": 3,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "plugins",
+        "declared": false,
+        "used_by": 3,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-platform",
+        "declared": false,
+        "used_by": 2,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-pidns",
+        "declared": false,
+        "used_by": 2,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "acp",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "croniter",
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-constants-scratch",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-constants-scratch-detach",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-startup-watchdog",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-api-content",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-compression",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-coverage",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-dbfile",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-gateway",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-guard",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-health",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-holders",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-keys",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-local",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-lockguard",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-lockowners",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-maintenance",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-messages",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-portability",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-profile-repair",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-prune-rewrite",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-readpool",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-repair",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-rewind",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-schema",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-sessions",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-telegram",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-titles",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-usage",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-user-copy",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-state-wal",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "hermes-yaml",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "mutagen",
+        "declared": false,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "psutil",
+        "declared": true,
+        "used_by": 1,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "browser-harness",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "certifi",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "concurrent-log-handler",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "fire",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "firecrawl-anydoc",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "httptools",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "markdown",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "nemo-relay",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "openai",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "packaging",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "pathspec",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "pillow-heif",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "prompt-toolkit",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "ptyprocess",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "pyjwt",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "python-dotenv",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "python-multipart",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "pywin32",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "pywinpty",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "resvg-py",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "ruamel.yaml",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "ruamel.yaml.clib",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "snowballstemmer",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "tenacity",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "truststore",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "tzdata",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "uvicorn",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "watchfiles",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "websockets",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "winrt-windows-applicationmodel",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "winrt-windows-foundation",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "winrt-windows-foundation-collections",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "winrt-windows-services-store",
+        "declared": true,
+        "used_by": 0,
+        "crates": null,
+        "fit": "unknown",
+        "note": ""
+      },
+      {
+        "name": "cryptography",
+        "declared": true,
+        "used_by": 0,
+        "crates": "ring, RustCrypto crates",
+        "fit": "partial",
+        "note": ""
+      },
+      {
+        "name": "pillow",
+        "declared": true,
+        "used_by": 0,
+        "crates": "image",
+        "fit": "partial",
+        "note": ""
+      },
+      {
+        "name": "pydantic",
+        "declared": true,
+        "used_by": 0,
+        "crates": "serde, garde",
+        "fit": "partial",
+        "note": "Validation errors will differ."
+      },
+      {
+        "name": "httpx",
+        "declared": true,
+        "used_by": 0,
+        "crates": "reqwest",
+        "fit": "good",
+        "note": ""
+      },
+      {
+        "name": "jinja2",
+        "declared": true,
+        "used_by": 0,
+        "crates": "minijinja",
+        "fit": "good",
+        "note": "Same template language, by Jinja's author."
+      },
+      {
+        "name": "requests",
+        "declared": true,
+        "used_by": 0,
+        "crates": "reqwest",
+        "fit": "good",
+        "note": ""
+      },
+      {
+        "name": "rich",
+        "declared": true,
+        "used_by": 0,
+        "crates": "owo-colors, anstream",
+        "fit": "good",
+        "note": ""
+      },
+      {
+        "name": "tomli-w",
+        "declared": true,
+        "used_by": 0,
+        "crates": "toml",
+        "fit": "good",
+        "note": ""
+      },
+      {
+        "name": "urllib3",
+        "declared": true,
+        "used_by": 0,
+        "crates": "reqwest",
+        "fit": "good",
+        "note": ""
+      }
+    ],
+    "pieces": [
+      {
+        "wave": 0,
+        "units": [
+          "hermes_constants.py"
+        ],
+        "loc": 1188,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "providers/"
+        ],
+        "loc": 1364,
+        "tangled": false
+      },
+      {
+        "wave": 1,
+        "units": [
+          "tools/",
+          "toolsets.py"
+        ],
+        "loc": 2913,
+        "tangled": true
+      },
+      {
+        "wave": 2,
+        "units": [
+          "agent/"
+        ],
+        "loc": 9097,
+        "tangled": false
+      },
+      {
+        "wave": 3,
+        "units": [
+          "cron/"
+        ],
+        "loc": 16622,
+        "tangled": false
+      },
+      {
+        "wave": 3,
+        "units": [
+          "hermes_state_common.py"
+        ],
+        "loc": 1321,
+        "tangled": false
+      },
+      {
+        "wave": 4,
+        "units": [
+          "hermes_state_fts.py"
+        ],
+        "loc": 517,
+        "tangled": false
+      },
+      {
+        "wave": 5,
+        "units": [
+          "hermes_state_search.py"
+        ],
+        "loc": 1412,
+        "tangled": false
+      },
+      {
+        "wave": 6,
+        "units": [
+          "hermes_state.py"
+        ],
+        "loc": 1592,
+        "tangled": false
+      },
+      {
+        "wave": 7,
+        "units": [
+          "acp_adapter/"
+        ],
+        "loc": 5669,
+        "tangled": false
+      },
+      {
+        "wave": 7,
+        "units": [
+          "gateway/"
+        ],
+        "loc": 4770,
+        "tangled": false
+      }
+    ],
+    "decisions": [
+      {
+        "id": "D1",
+        "topic": "shape",
+        "question": "The app is a cli, entered through hermes (hermes_cli.main:main), hermes-agent (agent.legacy_cli:main), hermes-acp (acp_adapter.entry:main), acp_adapter/entry.py, cron/scheduler.py, gateway/run.py. Port every entry point, in that shape?",
+        "recommendation": "Yes: a clap front door (`app front-door`) takes every command over first"
+      },
+      {
+        "id": "D2",
+        "topic": "blocked gateway/",
+        "question": "gateway/ is blocked: Uses dynamic code (eval, new Function or computed imports). Rework that part in Rust, or keep the unit outside?",
+        "recommendation": "Research the blocker first; then port it with the piece that uses it"
+      },
+      {
+        "id": "D3",
+        "topic": "blocked providers/",
+        "question": "providers/ is blocked: Uses dynamic code (eval, new Function or computed imports). Rework that part in Rust, or keep the unit outside?",
+        "recommendation": "Research the blocker first; then port it with the piece that uses it"
+      },
+      {
+        "id": "D4",
+        "topic": "blocked tools/",
+        "question": "tools/ is blocked: Uses dynamic code (eval, new Function or computed imports). Rework that part in Rust, or keep the unit outside?",
+        "recommendation": "Research the blocker first; then port it with the piece that uses it"
+      },
+      {
+        "id": "D5",
+        "topic": "dependency fastapi",
+        "question": "No crate does what fastapi does (declared, no unit imports it; Web framework: keep the app in Python). Reimplement what the app uses, or drop the feature?",
+        "recommendation": "Reimplement only the part the app uses, proved by its recorded cases"
+      },
+      {
+        "id": "D6",
+        "topic": "dependency hermes-cli",
+        "question": "Which crate replaces hermes-cli (used by 9 units)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-cli.md before porting what uses it"
+      },
+      {
+        "id": "D7",
+        "topic": "dependency hermes-state-errors",
+        "question": "Which crate replaces hermes-state-errors (used by 4 units)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-errors.md before porting what uses it"
+      },
+      {
+        "id": "D8",
+        "topic": "dependency hermes-state-registry",
+        "question": "Which crate replaces hermes-state-registry (used by 4 units)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-registry.md before porting what uses it"
+      },
+      {
+        "id": "D9",
+        "topic": "dependency pm",
+        "question": "Which crate replaces pm (used by 4 units)?",
+        "recommendation": "Research it against primary sources into rust/research/pm.md before porting what uses it"
+      },
+      {
+        "id": "D10",
+        "topic": "dependency run-agent",
+        "question": "Which crate replaces run-agent (used by 4 units)?",
+        "recommendation": "Research it against primary sources into rust/research/run-agent.md before porting what uses it"
+      },
+      {
+        "id": "D11",
+        "topic": "dependency tui-gateway",
+        "question": "Which crate replaces tui-gateway (used by 4 units)?",
+        "recommendation": "Research it against primary sources into rust/research/tui-gateway.md before porting what uses it"
+      },
+      {
+        "id": "D12",
+        "topic": "dependency utils",
+        "question": "Which crate replaces utils (used by 4 units)?",
+        "recommendation": "Research it against primary sources into rust/research/utils.md before porting what uses it"
+      },
+      {
+        "id": "D13",
+        "topic": "dependency hermes-bootstrap",
+        "question": "Which crate replaces hermes-bootstrap (used by 3 units)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-bootstrap.md before porting what uses it"
+      },
+      {
+        "id": "D14",
+        "topic": "dependency hermes-dir-acl",
+        "question": "Which crate replaces hermes-dir-acl (used by 3 units)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-dir-acl.md before porting what uses it"
+      },
+      {
+        "id": "D15",
+        "topic": "dependency hermes-logging",
+        "question": "Which crate replaces hermes-logging (used by 3 units)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-logging.md before porting what uses it"
+      },
+      {
+        "id": "D16",
+        "topic": "dependency hermes-time",
+        "question": "Which crate replaces hermes-time (used by 3 units)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-time.md before porting what uses it"
+      },
+      {
+        "id": "D17",
+        "topic": "dependency model-tools",
+        "question": "Which crate replaces model-tools (used by 3 units)?",
+        "recommendation": "Research it against primary sources into rust/research/model-tools.md before porting what uses it"
+      },
+      {
+        "id": "D18",
+        "topic": "dependency plugins",
+        "question": "Which crate replaces plugins (used by 3 units)?",
+        "recommendation": "Research it against primary sources into rust/research/plugins.md before porting what uses it"
+      },
+      {
+        "id": "D19",
+        "topic": "dependency hermes-platform",
+        "question": "Which crate replaces hermes-platform (used by 2 units)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-platform.md before porting what uses it"
+      },
+      {
+        "id": "D20",
+        "topic": "dependency hermes-state-pidns",
+        "question": "Which crate replaces hermes-state-pidns (used by 2 units)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-pidns.md before porting what uses it"
+      },
+      {
+        "id": "D21",
+        "topic": "dependency acp",
+        "question": "Which crate replaces acp (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/acp.md before porting what uses it"
+      },
+      {
+        "id": "D22",
+        "topic": "dependency croniter",
+        "question": "Which crate replaces croniter (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/croniter.md before porting what uses it"
+      },
+      {
+        "id": "D23",
+        "topic": "dependency hermes-constants-scratch",
+        "question": "Which crate replaces hermes-constants-scratch (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-constants-scratch.md before porting what uses it"
+      },
+      {
+        "id": "D24",
+        "topic": "dependency hermes-constants-scratch-detach",
+        "question": "Which crate replaces hermes-constants-scratch-detach (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-constants-scratch-detach.md before porting what uses it"
+      },
+      {
+        "id": "D25",
+        "topic": "dependency hermes-startup-watchdog",
+        "question": "Which crate replaces hermes-startup-watchdog (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-startup-watchdog.md before porting what uses it"
+      },
+      {
+        "id": "D26",
+        "topic": "dependency hermes-state-api-content",
+        "question": "Which crate replaces hermes-state-api-content (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-api-content.md before porting what uses it"
+      },
+      {
+        "id": "D27",
+        "topic": "dependency hermes-state-compression",
+        "question": "Which crate replaces hermes-state-compression (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-compression.md before porting what uses it"
+      },
+      {
+        "id": "D28",
+        "topic": "dependency hermes-state-coverage",
+        "question": "Which crate replaces hermes-state-coverage (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-coverage.md before porting what uses it"
+      },
+      {
+        "id": "D29",
+        "topic": "dependency hermes-state-dbfile",
+        "question": "Which crate replaces hermes-state-dbfile (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-dbfile.md before porting what uses it"
+      },
+      {
+        "id": "D30",
+        "topic": "dependency hermes-state-gateway",
+        "question": "Which crate replaces hermes-state-gateway (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-gateway.md before porting what uses it"
+      },
+      {
+        "id": "D31",
+        "topic": "dependency hermes-state-guard",
+        "question": "Which crate replaces hermes-state-guard (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-guard.md before porting what uses it"
+      },
+      {
+        "id": "D32",
+        "topic": "dependency hermes-state-health",
+        "question": "Which crate replaces hermes-state-health (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-health.md before porting what uses it"
+      },
+      {
+        "id": "D33",
+        "topic": "dependency hermes-state-holders",
+        "question": "Which crate replaces hermes-state-holders (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-holders.md before porting what uses it"
+      },
+      {
+        "id": "D34",
+        "topic": "dependency hermes-state-keys",
+        "question": "Which crate replaces hermes-state-keys (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-keys.md before porting what uses it"
+      },
+      {
+        "id": "D35",
+        "topic": "dependency hermes-state-local",
+        "question": "Which crate replaces hermes-state-local (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-local.md before porting what uses it"
+      },
+      {
+        "id": "D36",
+        "topic": "dependency hermes-state-lockguard",
+        "question": "Which crate replaces hermes-state-lockguard (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-lockguard.md before porting what uses it"
+      },
+      {
+        "id": "D37",
+        "topic": "dependency hermes-state-lockowners",
+        "question": "Which crate replaces hermes-state-lockowners (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-lockowners.md before porting what uses it"
+      },
+      {
+        "id": "D38",
+        "topic": "dependency hermes-state-maintenance",
+        "question": "Which crate replaces hermes-state-maintenance (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-maintenance.md before porting what uses it"
+      },
+      {
+        "id": "D39",
+        "topic": "dependency hermes-state-messages",
+        "question": "Which crate replaces hermes-state-messages (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-messages.md before porting what uses it"
+      },
+      {
+        "id": "D40",
+        "topic": "dependency hermes-state-portability",
+        "question": "Which crate replaces hermes-state-portability (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-portability.md before porting what uses it"
+      },
+      {
+        "id": "D41",
+        "topic": "dependency hermes-state-profile-repair",
+        "question": "Which crate replaces hermes-state-profile-repair (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-profile-repair.md before porting what uses it"
+      },
+      {
+        "id": "D42",
+        "topic": "dependency hermes-state-prune-rewrite",
+        "question": "Which crate replaces hermes-state-prune-rewrite (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-prune-rewrite.md before porting what uses it"
+      },
+      {
+        "id": "D43",
+        "topic": "dependency hermes-state-readpool",
+        "question": "Which crate replaces hermes-state-readpool (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-readpool.md before porting what uses it"
+      },
+      {
+        "id": "D44",
+        "topic": "dependency hermes-state-repair",
+        "question": "Which crate replaces hermes-state-repair (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-repair.md before porting what uses it"
+      },
+      {
+        "id": "D45",
+        "topic": "dependency hermes-state-rewind",
+        "question": "Which crate replaces hermes-state-rewind (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-rewind.md before porting what uses it"
+      },
+      {
+        "id": "D46",
+        "topic": "dependency hermes-state-schema",
+        "question": "Which crate replaces hermes-state-schema (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-schema.md before porting what uses it"
+      },
+      {
+        "id": "D47",
+        "topic": "dependency hermes-state-sessions",
+        "question": "Which crate replaces hermes-state-sessions (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-sessions.md before porting what uses it"
+      },
+      {
+        "id": "D48",
+        "topic": "dependency hermes-state-telegram",
+        "question": "Which crate replaces hermes-state-telegram (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-telegram.md before porting what uses it"
+      },
+      {
+        "id": "D49",
+        "topic": "dependency hermes-state-titles",
+        "question": "Which crate replaces hermes-state-titles (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-titles.md before porting what uses it"
+      },
+      {
+        "id": "D50",
+        "topic": "dependency hermes-state-usage",
+        "question": "Which crate replaces hermes-state-usage (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-usage.md before porting what uses it"
+      },
+      {
+        "id": "D51",
+        "topic": "dependency hermes-state-user-copy",
+        "question": "Which crate replaces hermes-state-user-copy (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-user-copy.md before porting what uses it"
+      },
+      {
+        "id": "D52",
+        "topic": "dependency hermes-state-wal",
+        "question": "Which crate replaces hermes-state-wal (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-state-wal.md before porting what uses it"
+      },
+      {
+        "id": "D53",
+        "topic": "dependency hermes-yaml",
+        "question": "Which crate replaces hermes-yaml (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/hermes-yaml.md before porting what uses it"
+      },
+      {
+        "id": "D54",
+        "topic": "dependency mutagen",
+        "question": "Which crate replaces mutagen (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/mutagen.md before porting what uses it"
+      },
+      {
+        "id": "D55",
+        "topic": "dependency psutil",
+        "question": "Which crate replaces psutil (used by 1 unit)?",
+        "recommendation": "Research it against primary sources into rust/research/psutil.md before porting what uses it"
+      },
+      {
+        "id": "D56",
+        "topic": "dependency browser-harness",
+        "question": "Which crate replaces browser-harness (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/browser-harness.md before porting what uses it"
+      },
+      {
+        "id": "D57",
+        "topic": "dependency certifi",
+        "question": "Which crate replaces certifi (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/certifi.md before porting what uses it"
+      },
+      {
+        "id": "D58",
+        "topic": "dependency concurrent-log-handler",
+        "question": "Which crate replaces concurrent-log-handler (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/concurrent-log-handler.md before porting what uses it"
+      },
+      {
+        "id": "D59",
+        "topic": "dependency fire",
+        "question": "Which crate replaces fire (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/fire.md before porting what uses it"
+      },
+      {
+        "id": "D60",
+        "topic": "dependency firecrawl-anydoc",
+        "question": "Which crate replaces firecrawl-anydoc (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/firecrawl-anydoc.md before porting what uses it"
+      },
+      {
+        "id": "D61",
+        "topic": "dependency httptools",
+        "question": "Which crate replaces httptools (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/httptools.md before porting what uses it"
+      },
+      {
+        "id": "D62",
+        "topic": "dependency markdown",
+        "question": "Which crate replaces markdown (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/markdown.md before porting what uses it"
+      },
+      {
+        "id": "D63",
+        "topic": "dependency nemo-relay",
+        "question": "Which crate replaces nemo-relay (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/nemo-relay.md before porting what uses it"
+      },
+      {
+        "id": "D64",
+        "topic": "dependency openai",
+        "question": "Which crate replaces openai (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/openai.md before porting what uses it"
+      },
+      {
+        "id": "D65",
+        "topic": "dependency packaging",
+        "question": "Which crate replaces packaging (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/packaging.md before porting what uses it"
+      },
+      {
+        "id": "D66",
+        "topic": "dependency pathspec",
+        "question": "Which crate replaces pathspec (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/pathspec.md before porting what uses it"
+      },
+      {
+        "id": "D67",
+        "topic": "dependency pillow-heif",
+        "question": "Which crate replaces pillow-heif (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/pillow-heif.md before porting what uses it"
+      },
+      {
+        "id": "D68",
+        "topic": "dependency prompt-toolkit",
+        "question": "Which crate replaces prompt-toolkit (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/prompt-toolkit.md before porting what uses it"
+      },
+      {
+        "id": "D69",
+        "topic": "dependency ptyprocess",
+        "question": "Which crate replaces ptyprocess (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/ptyprocess.md before porting what uses it"
+      },
+      {
+        "id": "D70",
+        "topic": "dependency pyjwt",
+        "question": "Which crate replaces pyjwt (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/pyjwt.md before porting what uses it"
+      },
+      {
+        "id": "D71",
+        "topic": "dependency python-dotenv",
+        "question": "Which crate replaces python-dotenv (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/python-dotenv.md before porting what uses it"
+      },
+      {
+        "id": "D72",
+        "topic": "dependency python-multipart",
+        "question": "Which crate replaces python-multipart (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/python-multipart.md before porting what uses it"
+      },
+      {
+        "id": "D73",
+        "topic": "dependency pywin32",
+        "question": "Which crate replaces pywin32 (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/pywin32.md before porting what uses it"
+      },
+      {
+        "id": "D74",
+        "topic": "dependency pywinpty",
+        "question": "Which crate replaces pywinpty (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/pywinpty.md before porting what uses it"
+      },
+      {
+        "id": "D75",
+        "topic": "dependency resvg-py",
+        "question": "Which crate replaces resvg-py (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/resvg-py.md before porting what uses it"
+      },
+      {
+        "id": "D76",
+        "topic": "dependency ruamel.yaml",
+        "question": "Which crate replaces ruamel.yaml (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/ruamel.yaml.md before porting what uses it"
+      },
+      {
+        "id": "D77",
+        "topic": "dependency ruamel.yaml.clib",
+        "question": "Which crate replaces ruamel.yaml.clib (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/ruamel.yaml.clib.md before porting what uses it"
+      },
+      {
+        "id": "D78",
+        "topic": "dependency snowballstemmer",
+        "question": "Which crate replaces snowballstemmer (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/snowballstemmer.md before porting what uses it"
+      },
+      {
+        "id": "D79",
+        "topic": "dependency tenacity",
+        "question": "Which crate replaces tenacity (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/tenacity.md before porting what uses it"
+      },
+      {
+        "id": "D80",
+        "topic": "dependency truststore",
+        "question": "Which crate replaces truststore (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/truststore.md before porting what uses it"
+      },
+      {
+        "id": "D81",
+        "topic": "dependency tzdata",
+        "question": "Which crate replaces tzdata (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/tzdata.md before porting what uses it"
+      },
+      {
+        "id": "D82",
+        "topic": "dependency uvicorn",
+        "question": "Which crate replaces uvicorn (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/uvicorn.md before porting what uses it"
+      },
+      {
+        "id": "D83",
+        "topic": "dependency watchfiles",
+        "question": "Which crate replaces watchfiles (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/watchfiles.md before porting what uses it"
+      },
+      {
+        "id": "D84",
+        "topic": "dependency websockets",
+        "question": "Which crate replaces websockets (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/websockets.md before porting what uses it"
+      },
+      {
+        "id": "D85",
+        "topic": "dependency winrt-windows-applicationmodel",
+        "question": "Which crate replaces winrt-windows-applicationmodel (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/winrt-windows-applicationmodel.md before porting what uses it"
+      },
+      {
+        "id": "D86",
+        "topic": "dependency winrt-windows-foundation",
+        "question": "Which crate replaces winrt-windows-foundation (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/winrt-windows-foundation.md before porting what uses it"
+      },
+      {
+        "id": "D87",
+        "topic": "dependency winrt-windows-foundation-collections",
+        "question": "Which crate replaces winrt-windows-foundation-collections (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/winrt-windows-foundation-collections.md before porting what uses it"
+      },
+      {
+        "id": "D88",
+        "topic": "dependency winrt-windows-services-store",
+        "question": "Which crate replaces winrt-windows-services-store (declared, no unit imports it)?",
+        "recommendation": "Research it against primary sources into rust/research/winrt-windows-services-store.md before porting what uses it"
+      },
+      {
+        "id": "D89",
+        "topic": "dependency cryptography",
+        "question": "cryptography maps to ring, RustCrypto crates only in part (declared, no unit imports it). Use it?",
+        "recommendation": "Use ring, RustCrypto crates, and record cases for the behavior it does not cover"
+      },
+      {
+        "id": "D90",
+        "topic": "dependency pillow",
+        "question": "pillow maps to image only in part (declared, no unit imports it). Use it?",
+        "recommendation": "Use image, and record cases for the behavior it does not cover"
+      },
+      {
+        "id": "D91",
+        "topic": "dependency pydantic",
+        "question": "pydantic maps to serde, garde only in part (declared, no unit imports it; Validation errors will differ). Use it?",
+        "recommendation": "Use serde, garde, and record cases for the behavior it does not cover"
+      },
+      {
+        "id": "D92",
+        "topic": "tangled units",
+        "question": "tools/, toolsets.py import each other (2913 lines). Port them as one piece?",
+        "recommendation": "Yes: one piece in wave 1, no glue between its parts"
+      }
+    ]
+  }
+}

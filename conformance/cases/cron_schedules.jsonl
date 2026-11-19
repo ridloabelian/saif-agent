@@ -1,0 +1,31 @@
+{"op": "parse_duration", "input": "30m", "ok": true, "minutes": 30}
+{"op": "parse_duration", "input": "1 min", "ok": true, "minutes": 1}
+{"op": "parse_duration", "input": "45mins", "ok": true, "minutes": 45}
+{"op": "parse_duration", "input": "2h", "ok": true, "minutes": 120}
+{"op": "parse_duration", "input": "hour", "ok": true, "minutes": 60}
+{"op": "parse_duration", "input": "3 hrs", "ok": true, "minutes": 180}
+{"op": "parse_duration", "input": "1d", "ok": true, "minutes": 1440}
+{"op": "parse_duration", "input": "7 days", "ok": true, "minutes": 10080}
+{"op": "parse_duration", "input": "bad", "ok": false, "error": "Invalid duration: 'bad'. Use format like '30m', '2h', '1d', or a bare unit like 'hour' (defaults to 1)."}
+{"op": "parse_duration", "input": "0m", "ok": true, "minutes": 0}
+{"op": "normalize_repeat", "input": null, "ok": true, "value": null}
+{"op": "normalize_repeat", "input": "forever", "ok": true, "value": null}
+{"op": "normalize_repeat", "input": "infinite", "ok": true, "value": null}
+{"op": "normalize_repeat", "input": "once", "ok": true, "value": 1}
+{"op": "normalize_repeat", "input": "1x", "ok": true, "value": 1}
+{"op": "normalize_repeat", "input": "3", "ok": true, "value": 3}
+{"op": "normalize_repeat", "input": 5, "ok": true, "value": 5}
+{"op": "normalize_repeat", "input": 0, "ok": true, "value": null}
+{"op": "normalize_repeat", "input": -1, "ok": true, "value": null}
+{"op": "normalize_repeat", "input": "bogus", "ok": false, "error": "Invalid repeat value 'bogus': use an integer, 'forever', or 'once'."}
+{"op": "parse_schedule", "input": "30m", "ok": true, "kind": "interval", "minutes": 30, "expr": null, "display": "every 30m", "grace_seconds": 900}
+{"op": "parse_schedule", "input": "every 2h", "ok": true, "kind": "interval", "minutes": 120, "expr": null, "display": "every 120m", "grace_seconds": 3600}
+{"op": "parse_schedule", "input": "every monday 9am", "ok": true, "kind": "cron", "minutes": null, "expr": "0 9 * * 1", "display": "every monday 9am", "grace_seconds": 7200}
+{"op": "parse_schedule", "input": "weekdays at 9am", "ok": true, "kind": "cron", "minutes": null, "expr": "0 9 * * 1-5", "display": "weekdays at 9am", "grace_seconds": 7200}
+{"op": "parse_schedule", "input": "every day at noon", "ok": true, "kind": "cron", "minutes": null, "expr": "0 12 * * *", "display": "every day at noon", "grace_seconds": 7200}
+{"op": "parse_schedule", "input": "every weekend at 18:30", "ok": true, "kind": "cron", "minutes": null, "expr": "30 18 * * 0,6", "display": "every weekend at 18:30", "grace_seconds": 7200}
+{"op": "parse_schedule", "input": "0 9 * * *", "ok": true, "kind": "cron", "minutes": null, "expr": "0 9 * * *", "display": "0 9 * * *", "grace_seconds": 7200}
+{"op": "parse_schedule", "input": "*/15 * * * 1-5", "ok": true, "kind": "cron", "minutes": null, "expr": "*/15 * * * 1-5", "display": "*/15 * * * 1-5", "grace_seconds": 450}
+{"op": "parse_schedule", "input": "2026-06-01T09:00:00Z", "ok": true, "kind": "once", "minutes": null, "expr": null, "display": "once at 2026-06-01 09:00", "grace_seconds": 120}
+{"op": "parse_schedule", "input": "in 30m", "ok": true, "kind": "once", "minutes": null, "expr": null, "display": "once in 30m", "grace_seconds": 120}
+{"op": "parse_schedule", "input": "not a schedule", "ok": false, "error": "Invalid schedule 'not a schedule'. Use:\n  - Interval: '30m', 'every 30m', 'every 2h' (recurring)\n  - One-shot delay: 'in 30m', 'in 2h' (fires once)\n  - Weekly/daily: 'every monday 9am', 'weekdays at 9am' (recurring)\n  - Cron: '0 9 * * *' (cron expression)\n  - Timestamp: '2026-02-03T14:00:00' (one-shot at time)"}

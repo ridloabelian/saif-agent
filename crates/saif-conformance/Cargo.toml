@@ -1,0 +1,26 @@
+[package]
+name = "saif-conformance"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dev-dependencies]
+saif-config = { path = "../saif-config" }
+saif-core = { path = "../saif-core" }
+saif-cron = { path = "../saif-cron" }
+saif-gateway = { path = "../saif-gateway" }
+saif-persistence = { path = "../saif-persistence" }
+saif-platform = { path = "../saif-platform" }
+saif-plugins = { path = "../saif-plugins" }
+saif-providers = { path = "../saif-providers" }
+saif-skills = { path = "../saif-skills" }
+saif-tools = { path = "../saif-tools" }
+saif-web = { path = "../saif-web" }
+async-trait.workspace = true
+axum.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true

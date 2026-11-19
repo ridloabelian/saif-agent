@@ -1,0 +1,41 @@
+[package]
+name = "saif-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "saif"
+path = "src/main.rs"
+
+[[bin]]
+name = "saif-acp"
+path = "src/bin/saif-acp.rs"
+
+[dependencies]
+saif-acp = { path = "../saif-acp" }
+saif-config = { path = "../saif-config" }
+saif-core = { path = "../saif-core" }
+saif-cron = { path = "../saif-cron" }
+saif-gateway = { path = "../saif-gateway" }
+saif-persistence = { path = "../saif-persistence" }
+saif-platform = { path = "../saif-platform" }
+saif-plugins = { path = "../saif-plugins" }
+saif-providers = { path = "../saif-providers" }
+saif-skills = { path = "../saif-skills" }
+saif-tools = { path = "../saif-tools" }
+saif-tui = { path = "../saif-tui" }
+saif-web = { path = "../saif-web" }
+anyhow.workspace = true
+axum.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

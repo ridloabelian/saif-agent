@@ -1,0 +1,384 @@
+use crate::types::ProviderError;
+use saif_config::{SaifConfig, SecretScope};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ApiMode {
+    ChatCompletions,
+    AnthropicMessages,
+    CodexResponses,
+    Bedrock,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthType {
+    ApiKey,
+    OAuth,
+    None,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderProfile {
+    pub id: &'static str,
+    pub display_name: &'static str,
+    pub base_url: &'static str,
+    pub api_mode: ApiMode,
+    pub auth_type: AuthType,
+    pub env_var: &'static str,
+    pub default_model: &'static str,
+    pub default_aux_model: &'static str,
+    pub omit_temperature: bool,
+    pub supports_prompt_caching: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResolvedRoute {
+    pub provider_id: String,
+    pub base_url: String,
+    pub api_mode: ApiMode,
+    pub model: String,
+    pub api_key: Option<String>,
+    pub omit_temperature: bool,
+    pub supports_prompt_caching: bool,
+}
+
+pub fn builtin_providers() -> Vec<ProviderProfile> {
+    vec![
+        ProviderProfile {
+            id: "openrouter",
+            display_name: "OpenRouter",
+            base_url: "https://openrouter.ai/api/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "OPENROUTER_API_KEY",
+            default_model: "anthropic/claude-sonnet-4",
+            default_aux_model: "google/gemini-2.5-flash",
+            omit_temperature: false,
+            supports_prompt_caching: true,
+        },
+        ProviderProfile {
+            id: "nous",
+            display_name: "Nous Portal",
+            base_url: "https://inference-api.nousresearch.com/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::OAuth,
+            env_var: "NOUS_API_KEY",
+            default_model: "hermes-4-405b",
+            default_aux_model: "hermes-4-70b",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "openai",
+            display_name: "OpenAI",
+            base_url: "https://api.openai.com/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "OPENAI_API_KEY",
+            default_model: "gpt-4.1",
+            default_aux_model: "gpt-4.1-mini",
+            omit_temperature: false,
+            supports_prompt_caching: true,
+        },
+        ProviderProfile {
+            id: "openai-codex",
+            display_name: "OpenAI Codex",
+            base_url: "https://chatgpt.com/backend-api/codex",
+            api_mode: ApiMode::CodexResponses,
+            auth_type: AuthType::OAuth,
+            env_var: "OPENAI_API_KEY",
+            default_model: "gpt-5.3-codex",
+            default_aux_model: "gpt-5-codex-mini",
+            omit_temperature: true,
+            supports_prompt_caching: true,
+        },
+        ProviderProfile {
+            id: "anthropic",
+            display_name: "Anthropic",
+            base_url: "https://api.anthropic.com",
+            api_mode: ApiMode::AnthropicMessages,
+            auth_type: AuthType::ApiKey,
+            env_var: "ANTHROPIC_API_KEY",
+            default_model: "claude-sonnet-4-20250514",
+            default_aux_model: "claude-3-5-haiku-20241022",
+            omit_temperature: false,
+            supports_prompt_caching: true,
+        },
+        ProviderProfile {
+            id: "gemini",
+            display_name: "Google Gemini",
+            base_url: "https://generativelanguage.googleapis.com/v1beta/openai",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "GEMINI_API_KEY",
+            default_model: "gemini-2.5-pro",
+            default_aux_model: "gemini-2.5-flash",
+            omit_temperature: false,
+            supports_prompt_caching: true,
+        },
+        ProviderProfile {
+            id: "deepseek",
+            display_name: "DeepSeek",
+            base_url: "https://api.deepseek.com/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "DEEPSEEK_API_KEY",
+            default_model: "deepseek-chat",
+            default_aux_model: "deepseek-chat",
+            omit_temperature: false,
+            supports_prompt_caching: true,
+        },
+        ProviderProfile {
+            id: "alibaba",
+            display_name: "Alibaba Qwen (DashScope)",
+            base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "DASHSCOPE_API_KEY",
+            default_model: "qwen3-coder-plus",
+            default_aux_model: "qwen-turbo",
+            omit_temperature: false,
+            supports_prompt_caching: true,
+        },
+        ProviderProfile {
+            id: "xai",
+            display_name: "xAI Grok",
+            base_url: "https://api.x.ai/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "XAI_API_KEY",
+            default_model: "grok-3",
+            default_aux_model: "grok-3-mini",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "groq",
+            display_name: "Groq",
+            base_url: "https://api.groq.com/openai/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "GROQ_API_KEY",
+            default_model: "llama-3.3-70b-versatile",
+            default_aux_model: "llama-3.1-8b-instant",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "fireworks",
+            display_name: "Fireworks AI",
+            base_url: "https://api.fireworks.ai/inference/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "FIREWORKS_API_KEY",
+            default_model: "accounts/fireworks/models/deepseek-v3",
+            default_aux_model: "accounts/fireworks/models/llama-v3p1-8b-instruct",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "together",
+            display_name: "Together AI",
+            base_url: "https://api.together.xyz/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "TOGETHER_API_KEY",
+            default_model: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            default_aux_model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "deepinfra",
+            display_name: "DeepInfra",
+            base_url: "https://api.deepinfra.com/v1/openai",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "DEEPINFRA_API_KEY",
+            default_model: "deepseek-ai/DeepSeek-V3",
+            default_aux_model: "meta-llama/Llama-3.2-3B-Instruct",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "nebius",
+            display_name: "Nebius Token Factory",
+            base_url: "https://api.studio.nebius.com/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "NEBIUS_API_KEY",
+            default_model: "deepseek-ai/DeepSeek-R1",
+            default_aux_model: "meta-llama/Meta-Llama-3.1-8B-Instruct",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "nvidia",
+            display_name: "NVIDIA NIM",
+            base_url: "https://integrate.api.nvidia.com/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "NVIDIA_API_KEY",
+            default_model: "nvidia/llama-3.3-nemotron-super-49b-v1",
+            default_aux_model: "meta/llama-3.1-8b-instruct",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "mistral",
+            display_name: "Mistral",
+            base_url: "https://api.mistral.ai/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "MISTRAL_API_KEY",
+            default_model: "mistral-large-latest",
+            default_aux_model: "mistral-small-latest",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "kimi-coding",
+            display_name: "Moonshot Kimi",
+            base_url: "https://api.moonshot.ai/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "MOONSHOT_API_KEY",
+            default_model: "kimi-k2.5",
+            default_aux_model: "moonshot-v1-8k",
+            omit_temperature: true,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "minimax",
+            display_name: "MiniMax",
+            base_url: "https://api.minimax.io/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "MINIMAX_API_KEY",
+            default_model: "MiniMax-M1",
+            default_aux_model: "MiniMax-Text-01",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "ollama",
+            display_name: "Ollama Local",
+            base_url: "http://127.0.0.1:11434/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::None,
+            env_var: "OLLAMA_API_KEY",
+            default_model: "qwen2.5-coder:14b",
+            default_aux_model: "qwen2.5:3b",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "lmstudio",
+            display_name: "LM Studio Local",
+            base_url: "http://127.0.0.1:1234/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::None,
+            env_var: "LMSTUDIO_API_KEY",
+            default_model: "local-model",
+            default_aux_model: "local-model",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "custom",
+            display_name: "Custom OpenAI-Compatible",
+            base_url: "http://127.0.0.1:8000/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "OPENAI_API_KEY",
+            default_model: "default",
+            default_aux_model: "default",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+    ]
+}
+
+pub fn get_provider_profile(id: &str) -> Option<ProviderProfile> {
+    let needle = id.trim().to_ascii_lowercase();
+    builtin_providers().into_iter().find(|p| p.id == needle)
+}
+
+pub fn resolve_provider_route(
+    cfg: &SaifConfig,
+    secrets: &SecretScope,
+    provider_override: Option<&str>,
+    model_override: Option<&str>,
+    base_url_override: Option<&str>,
+) -> Result<ResolvedRoute, ProviderError> {
+    let chosen_provider = provider_override
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| (!cfg.provider.trim().is_empty()).then_some(cfg.provider.as_str()))
+        .unwrap_or_else(|| auto_detect_provider(secrets));
+
+    let profile = get_provider_profile(chosen_provider).unwrap_or_else(|| {
+        get_provider_profile("custom").unwrap_or_else(|| builtin_providers().remove(0))
+    });
+
+    let base_url = base_url_override
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| cfg.base_url.as_deref().filter(|s| !s.trim().is_empty()))
+        .unwrap_or(profile.base_url)
+        .trim_end_matches('/')
+        .to_string();
+
+    let model = model_override
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| (!cfg.model.trim().is_empty()).then_some(cfg.model.as_str()))
+        .unwrap_or(profile.default_model)
+        .to_string();
+
+    let api_mode = match cfg.api_mode.as_deref() {
+        Some("anthropic") | Some("anthropic_messages") => ApiMode::AnthropicMessages,
+        Some("codex") | Some("codex_responses") => ApiMode::CodexResponses,
+        Some("bedrock") => ApiMode::Bedrock,
+        Some("chat_completions") | Some("openai") => ApiMode::ChatCompletions,
+        _ => profile.api_mode,
+    };
+
+    let api_key = secrets.get_secret(profile.env_var);
+    if profile.auth_type == AuthType::ApiKey
+        && api_key.is_none()
+        && !base_url.starts_with("http://127.0.0.1")
+        && !base_url.starts_with("http://localhost")
+    {
+        return Err(ProviderError::MissingCredentials {
+            provider: profile.id.to_string(),
+            env_var: profile.env_var.to_string(),
+        });
+    }
+
+    Ok(ResolvedRoute {
+        provider_id: profile.id.to_string(),
+        base_url,
+        api_mode,
+        model,
+        api_key,
+        omit_temperature: profile.omit_temperature,
+        supports_prompt_caching: profile.supports_prompt_caching,
+    })
+}
+
+fn auto_detect_provider(secrets: &SecretScope) -> &'static str {
+    for candidate in [
+        ("openrouter", "OPENROUTER_API_KEY"),
+        ("anthropic", "ANTHROPIC_API_KEY"),
+        ("openai", "OPENAI_API_KEY"),
+        ("gemini", "GEMINI_API_KEY"),
+        ("deepseek", "DEEPSEEK_API_KEY"),
+        ("groq", "GROQ_API_KEY"),
+        ("xai", "XAI_API_KEY"),
+    ] {
+        if secrets.get_secret(candidate.1).is_some() {
+            return candidate.0;
+        }
+    }
+    "openrouter"
+}

@@ -1,0 +1,22 @@
+# Build artifacts
+target/
+**/*.rs.bk
+*.pdb
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# SQLite & local runtime state
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Editor / OS junk
+.DS_Store
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,21 @@
+[package]
+name = "saif-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+saif-config = { path = "../saif-config" }
+saif-core = { path = "../saif-core" }
+saif-persistence = { path = "../saif-persistence" }
+saif-providers = { path = "../saif-providers" }
+saif-rpc-contract = { path = "../saif-rpc-contract" }
+anyhow.workspace = true
+crossterm.workspace = true
+ratatui.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+uuid.workspace = true
