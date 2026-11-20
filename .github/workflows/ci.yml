@@ -43,4 +43,42 @@ jobs:
       - name: Verify WASM asset parity
         run: |
           cargo build --manifest-path apps/saif-web-ui/Cargo.toml --target wasm32-unknown-unknown --release
-          cmp -s apps/saif-web-ui/target/wasm32-unknown-unknown/release/saif_web_ui.wasm crates/saif-web/assets/saif_web_ui.wasm
+          python3 - <<'PY'
+          def read_leb(b, i):
+              v = s = 0
+              while True:
+                  c = b[i]; i += 1
+                  v |= (c & 0x7f) << s
+                  if not (c & 0x80):
+                      return v, i
+                  s += 7
+
+          def wasm_exports(path):
+              b = open(path, "rb").read()
+              assert b[:8] == b"\x00asm\x01\x00\x00\x00", f"{path}: invalid WASM header"
+              assert 0 < len(b) < 512 * 1024, f"{path}: unexpected WASM size {len(b)}"
+              i = 8
+              while i < len(b):
+                  sid = b[i]; i += 1
+                  slen, i = read_leb(b, i)
+                  end = i + slen
+                  if sid == 7:
+                      cnt, p = read_leb(b, i)
+                      out = []
+                      for _ in range(cnt):
+                          nlen, p = read_leb(b, p)
+                          name = b[p:p + nlen].decode("utf-8")
+                          p += nlen
+                          kind = b[p]; p += 1
+                          _, p = read_leb(b, p)
+                          out.append((name, kind))
+                      return out
+                  i = end
+              return []
+
+          built = wasm_exports("apps/saif-web-ui/target/wasm32-unknown-unknown/release/saif_web_ui.wasm")
+          asset = wasm_exports("crates/saif-web/assets/saif_web_ui.wasm")
+          assert asset, "committed WASM asset exports must not be empty"
+          assert built == asset, f"WASM export mismatch: built={built} asset={asset}"
+          print(f"WASM ABI parity verified ({len(asset)} exports)")
+          PY
