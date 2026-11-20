@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 440" width="100%" role="img" aria-label="Saif Agent Pure-Rust System Architecture">
+  <defs>
+    <linearGradient id="archBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070B14"/>
+      <stop offset="100%" stop-color="#0C1426"/>
+    </linearGradient>
+    <linearGradient id="coreGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E1B4B" stop-opacity="0.7"/>
+      <stop offset="50%" stop-color="#0F172A" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#27140B" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="coreStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#F97316"/>
+    </linearGradient>
+    <filter id="orbGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <style><![CDATA[
+    .flow-line {
+      stroke-dasharray: 8 6;
+      animation: flowDash 2.6s linear infinite;
+    }
+    .hub-pulse {
+      animation: hubPulse 3.8s ease-in-out infinite;
+    }
+    @keyframes flowDash {
+      to { stroke-dashoffset: -56; }
+    }
+    @keyframes hubPulse {
+      0%, 100% { stroke-opacity: 0.65; }
+      50% { stroke-opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .flow-line, .hub-pulse { animation: none !important; }
+    }
+  ]]></style>
+
+  <rect x="2" y="2" width="1056" height="436" rx="16" fill="url(#archBg)" stroke="#1E293B" stroke-width="2"/>
+
+  <!-- Column Headers -->
+  <g font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="700" letter-spacing="1.8">
+    <text x="155" y="34" text-anchor="middle" fill="#38BDF8">1. SURFACES &amp; GATEWAYS</text>
+    <text x="530" y="34" text-anchor="middle" fill="#FDBA74">2. DETERMINISTIC RUST CORE</text>
+    <text x="905" y="34" text-anchor="middle" fill="#34D399">3. PROVIDERS, TOOLS &amp; STATE</text>
+  </g>
+
+  <!-- Connector Paths (Left -> Center) -->
+  <g fill="none" stroke-width="1.8">
+    <path id="pL1" d="M 284 96 C 325 96, 330 164, 372 164" stroke="#38BDF8" stroke-opacity="0.35"/>
+    <path class="flow-line" d="M 284 96 C 325 96, 330 164, 372 164" stroke="#38BDF8" stroke-opacity="0.85"/>
+
+    <path id="pL2" d="M 284 182 L 372 182" stroke="#38BDF8" stroke-opacity="0.35"/>
+    <path class="flow-line" d="M 284 182 L 372 182" stroke="#38BDF8" stroke-opacity="0.85"/>
+
+    <path id="pL3" d="M 284 268 C 325 268, 330 236, 372 236" stroke="#38BDF8" stroke-opacity="0.35"/>
+    <path class="flow-line" d="M 284 268 C 325 268, 330 236, 372 236" stroke="#38BDF8" stroke-opacity="0.85"/>
+
+    <path id="pL4" d="M 284 354 C 325 354, 330 278, 372 278" stroke="#38BDF8" stroke-opacity="0.35"/>
+    <path class="flow-line" d="M 284 354 C 325 354, 330 278, 372 278" stroke="#38BDF8" stroke-opacity="0.85"/>
+  </g>
+
+  <!-- Connector Paths (Center -> Right) -->
+  <g fill="none" stroke-width="1.8">
+    <path id="pR1" d="M 688 164 C 730 164, 735 96, 776 96" stroke="#F97316" stroke-opacity="0.35"/>
+    <path class="flow-line" d="M 688 164 C 730 164, 735 96, 776 96" stroke="#F97316" stroke-opacity="0.85"/>
+
+    <path id="pR2" d="M 688 198 L 776 182" stroke="#F97316" stroke-opacity="0.35"/>
+    <path class="flow-line" d="M 688 198 L 776 182" stroke="#F97316" stroke-opacity="0.85"/>
+
+    <path id="pR3" d="M 688 236 C 730 236, 735 268, 776 268" stroke="#34D399" stroke-opacity="0.35"/>
+    <path class="flow-line" d="M 688 236 C 730 236, 735 268, 776 268" stroke="#34D399" stroke-opacity="0.85"/>
+
+    <path id="pR4" d="M 688 278 C 730 278, 735 354, 776 354" stroke="#34D399" stroke-opacity="0.35"/>
+    <path class="flow-line" d="M 688 278 C 730 278, 735 354, 776 354" stroke="#34D399" stroke-opacity="0.85"/>
+  </g>
+
+  <!-- Animated Travelling Data Orbs -->
+  <g filter="url(#orbGlow)">
+    <circle r="4" fill="#38BDF8">
+      <animateMotion dur="2.8s" repeatCount="indefinite" path="M 284 96 C 325 96, 330 164, 372 164"/>
+    </circle>
+    <circle r="4" fill="#38BDF8">
+      <animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite" path="M 284 182 L 372 182"/>
+    </circle>
+    <circle r="4" fill="#38BDF8">
+      <animateMotion dur="3.1s" begin="1.4s" repeatCount="indefinite" path="M 284 268 C 325 268, 330 236, 372 236"/>
+    </circle>
+    <circle r="4" fill="#F97316">
+      <animateMotion dur="2.6s" begin="0.3s" repeatCount="indefinite" path="M 688 164 C 730 164, 735 96, 776 96"/>
+    </circle>
+    <circle r="4" fill="#34D399">
+      <animateMotion dur="3.0s" begin="1.1s" repeatCount="indefinite" path="M 688 236 C 730 236, 735 268, 776 268"/>
+    </circle>
+    <circle r="4" fill="#34D399">
+      <animateMotion dur="3.4s" begin="1.7s" repeatCount="indefinite" path="M 688 278 C 730 278, 735 354, 776 354"/>
+    </circle>
+  </g>
+
+  <!-- Column 1 Nodes -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">
+    <rect x="28" y="62" width="256" height="68" rx="10" fill="#0F172A" stroke="#38BDF8" stroke-opacity="0.5" stroke-width="1.4"/>
+    <text x="46" y="91" font-size="14.5" font-weight="700" fill="#F8FAFC">CLI &amp; Ratatui TUI</text>
+    <text x="46" y="114" font-size="12" fill="#94A3B8">saif, --tui, tui-gateway (2.51 ms)</text>
+
+    <rect x="28" y="148" width="256" height="68" rx="10" fill="#0F172A" stroke="#38BDF8" stroke-opacity="0.5" stroke-width="1.4"/>
+    <text x="46" y="177" font-size="14.5" font-weight="700" fill="#F8FAFC">30 Chat Gateways</text>
+    <text x="46" y="200" font-size="12" fill="#94A3B8">Telegram drafts, /stop, /steer, webhooks</text>
+
+    <rect x="28" y="234" width="256" height="68" rx="10" fill="#0F172A" stroke="#38BDF8" stroke-opacity="0.5" stroke-width="1.4"/>
+    <text x="46" y="263" font-size="14.5" font-weight="700" fill="#F8FAFC">Axum + WASM Web UI</text>
+    <text x="46" y="286" font-size="12" fill="#94A3B8">224 KB wasm32 UI, WS stream, PTY</text>
+
+    <rect x="28" y="320" width="256" height="68" rx="10" fill="#0F172A" stroke="#38BDF8" stroke-opacity="0.5" stroke-width="1.4"/>
+    <text x="46" y="349" font-size="14.5" font-weight="700" fill="#F8FAFC">ACP &amp; Tauri v2 Desktop</text>
+    <text x="46" y="372" font-size="12" fill="#94A3B8">saif-acp IDE server &amp; native shell</text>
+  </g>
+
+  <!-- Column 2 Central Deterministic Hub -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">
+    <rect class="hub-pulse" x="372" y="64" width="316" height="324" rx="14" fill="url(#coreGlow)" stroke="url(#coreStroke)" stroke-width="2"/>
+    <text x="530" y="96" text-anchor="middle" font-size="16" font-weight="800" fill="#FFFFFF">AgentRunner &amp; Guardrails</text>
+    <text x="530" y="116" text-anchor="middle" font-size="11.5" fill="#94A3B8">saif-core  ·  saif-config  ·  saif-plugins</text>
+
+    <rect x="394" y="134" width="272" height="44" rx="8" fill="#0B1220" stroke="#F97316" stroke-opacity="0.45"/>
+    <text x="410" y="154" font-size="13" font-weight="700" fill="#FDBA74">Byte-Stable PromptBuilder</text>
+    <text x="410" y="170" font-size="11" fill="#94A3B8">Immutable system[0] + strict role alternation</text>
+
+    <rect x="394" y="190" width="272" height="44" rx="8" fill="#0B1220" stroke="#38BDF8" stroke-opacity="0.45"/>
+    <text x="410" y="210" font-size="13" font-weight="700" fill="#7DD3FC">Cancel-Safe Turn &amp; Compression</text>
+    <text x="410" y="226" font-size="11" fill="#94A3B8">tokio::select! /stop, tail-safe compaction</text>
+
+    <rect x="394" y="246" width="272" height="44" rx="8" fill="#0B1220" stroke="#10B981" stroke-opacity="0.45"/>
+    <text x="410" y="266" font-size="13" font-weight="700" fill="#6EE7B7">Fail-Closed Secret &amp; Profile Scope</text>
+    <text x="410" y="282" font-size="11" fill="#94A3B8">Profile isolation + SecretRedactor scrubbing</text>
+
+    <rect x="394" y="302" width="272" height="64" rx="8" fill="#0B1220" stroke="#A78BFA" stroke-opacity="0.45"/>
+    <text x="410" y="324" font-size="13" font-weight="700" fill="#C4B5FD">Upstream Lock &amp; Conformance</text>
+    <text x="410" y="342" font-size="11" fill="#94A3B8">UPSTREAM_LOCK.json classifier &amp; SHA-40</text>
+    <text x="410" y="357" font-size="11" fill="#94A3B8">plugin pinning + 120 golden oracle vectors</text>
+  </g>
+
+  <!-- Column 3 Nodes -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">
+    <rect x="776" y="62" width="256" height="68" rx="10" fill="#0F172A" stroke="#F97316" stroke-opacity="0.55" stroke-width="1.4"/>
+    <text x="794" y="91" font-size="14.5" font-weight="700" fill="#F8FAFC">36 LLM Providers &amp; Pool</text>
+    <text x="794" y="114" font-size="12" fill="#94A3B8">OpenAI, Anthropic SSE, Codex, SigV4</text>
+
+    <rect x="776" y="148" width="256" height="68" rx="10" fill="#0F172A" stroke="#F97316" stroke-opacity="0.55" stroke-width="1.4"/>
+    <text x="794" y="177" font-size="14.5" font-weight="700" fill="#F8FAFC">SQLite v32 + FTS5 + Kanban</text>
+    <text x="794" y="200" font-size="12" fill="#94A3B8">state.db hydration, trigram, kanban.db</text>
+
+    <rect x="776" y="234" width="256" height="68" rx="10" fill="#0F172A" stroke="#10B981" stroke-opacity="0.55" stroke-width="1.4"/>
+    <text x="794" y="263" font-size="14.5" font-weight="700" fill="#F8FAFC">Sandboxed Tools &amp; MCP</text>
+    <text x="794" y="286" font-size="12" fill="#94A3B8">Docker/SSH/Modal, CDP, RPC, BM25</text>
+
+    <rect x="776" y="320" width="256" height="68" rx="10" fill="#0F172A" stroke="#10B981" stroke-opacity="0.55" stroke-width="1.4"/>
+    <text x="794" y="349" font-size="14.5" font-weight="700" fill="#F8FAFC">Skills Curator &amp; Cron</text>
+    <text x="794" y="372" font-size="12" fill="#94A3B8">Injection scan, advance_before_dispatch</text>
+  </g>
+</svg>
