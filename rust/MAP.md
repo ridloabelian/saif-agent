@@ -89,4 +89,4 @@ Verified after final Phases 1–7 edits on `rustc 1.100.0` / `cargo 1.100.0`:
   - `cargo build --manifest-path apps/saif-web-ui/Cargo.toml --target wasm32-unknown-unknown --release`: passed (exit `0`), emitting `saif_web_ui.wasm` (`224K`, identical to embedded `crates/saif-web/assets/saif_web_ui.wasm`).
   - `apps/saif-desktop/src-tauri`: pure-Rust Tauri v2 shell (`build.rs`, `tauri.conf.json`, `src/main.rs`), excluded from headless Linux workspace build because `webkit2gtk` GUI libraries are not installed on this server.
 - **Cold Startup Baseline (`--version`, measured on Wave 1–2 release binary)**:
-  - `./target/release/saif --version` (5 runs, isolated temp `SAIF_HOME`): median `2.51 ms` vs `/home/ridlo/.local/bin/hermes --version` (2 read-only runs): median `575.83 ms` (`229.4x` faster).
+  - `./target/release/saif --version` (5 runs, isolated temp `SAIF_HOME`): median `2.51 ms` vs `~/.local/bin/hermes --version` (2 read-only runs): median `575.83 ms` (`229.4x` faster).

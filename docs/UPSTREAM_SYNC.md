@@ -64,7 +64,7 @@ SAIF_HOME="$TMP_HOME" ./target/release/saif upstream diff --from <SHA_A> --to <S
 
 ## Aturan Wajib Saat Sinkronisasi
 
-1. **Jangan pernah memodifikasi `/home/ridlo/.hermes` atau `/home/ridlo/.hermes/hermes-agent`** — direktori tersebut adalah state produksi live dan hanya boleh dibaca sebagai referensi oracle.
+1. **Jangan pernah memodifikasi `~/.hermes` atau `~/.hermes/hermes-agent`** — direktori tersebut adalah state produksi live dan hanya boleh dibaca sebagai referensi oracle.
 2. **Jangan pernah mem-port ketergantungan Python/Node ke runtime utama** — terjemahkan kontrak perilakunya ke pure Rust (`saif-*`) dengan `rustls`, SQLite bundled, dan error propagation eksplisit.
 3. **Wajib menjaga 8 invarian inti** di [HERMES_ANATOMY.md](HERMES_ANATOMY.md) (terutama *Byte-Stable `system[0]`*, *Strict Role Alternation*, *Fail-Closed `SecretScope`*, *4-Invariant Draft Streaming*, dan *At-Most-Once Cron `advance_before_dispatch`*).
 4. **Wajib lolos Quality Gate penuh** sebelum menjalankan `saif upstream ack`:

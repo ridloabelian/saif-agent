@@ -27,6 +27,9 @@ exclude = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+authors = ["Ridlo Abelian"]
+repository = "https://github.com/ridloabelian/saif-agent"
+readme = "README.md"
 
 [workspace.dependencies]
 anyhow = "1.0"

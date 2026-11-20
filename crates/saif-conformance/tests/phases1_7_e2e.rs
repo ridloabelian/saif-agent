@@ -1191,18 +1191,18 @@ fn real_world_hermes_polymorphic_config_and_cron_compat() {
     let home = tmp.path().join("hermes_compat_home");
     fs::create_dir_all(home.join("cron")).unwrap();
 
-    fs::write(home.join(".env"), "NINEROUTER_KEY=nr-secret-123\n").unwrap();
+    fs::write(home.join(".env"), "CUSTOM_ROUTER_KEY=cr-secret-123\n").unwrap();
     fs::write(
         home.join("config.yaml"),
         r#"
 model:
   default: "glm-4.5"
-  provider: "ninerouter"
+  provider: "custom_router"
 providers:
-  ninerouter:
-    name: "NineRouter"
-    base_url: "https://nr.example.test/v1"
-    key_env: "NINEROUTER_KEY"
+  custom_router:
+    name: "CustomRouter"
+    base_url: "https://router.example.test/v1"
+    key_env: "CUSTOM_ROUTER_KEY"
     api: "openai-completions"
 fallback_providers: "openrouter, anthropic"
 mcp_servers:
@@ -1219,7 +1219,7 @@ gateway:
     let scope = ProfileScope::for_root(home.clone(), false);
     let cfg = load_effective_saif_config(&home, Some(&scope.secrets)).unwrap();
     assert_eq!(cfg.model, "glm-4.5");
-    assert_eq!(cfg.provider, "ninerouter");
+    assert_eq!(cfg.provider, "custom_router");
     assert_eq!(cfg.fallback_providers, vec!["openrouter", "anthropic"]);
     assert_eq!(
         cfg.mcp_servers["google_workspace"].args,
@@ -1230,9 +1230,9 @@ gateway:
     let route =
         resolve_provider_route_for_home(Some(&home), &cfg, &scope.secrets, None, None, None)
             .unwrap();
-    assert_eq!(route.provider_id, "ninerouter");
-    assert_eq!(route.base_url, "https://nr.example.test/v1");
-    assert_eq!(route.api_key.as_deref(), Some("nr-secret-123"));
+    assert_eq!(route.provider_id, "custom_router");
+    assert_eq!(route.base_url, "https://router.example.test/v1");
+    assert_eq!(route.api_key.as_deref(), Some("cr-secret-123"));
     assert_eq!(route.api_mode, ApiMode::ChatCompletions);
 
     fs::write(

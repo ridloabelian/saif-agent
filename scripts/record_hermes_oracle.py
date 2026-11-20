@@ -29,7 +29,7 @@ if not env_home or Path(env_home).resolve() == REAL_HERMES.resolve():
         "Refusing to run oracle recorder without an isolated temp HERMES_HOME."
     )
 
-HERMES_SRC = Path("/home/ridlo/.hermes/hermes-agent")
+HERMES_SRC = Path(os.environ.get("HERMES_SRC", str(REAL_HERMES / "hermes-agent")))
 if str(HERMES_SRC) not in sys.path:
     sys.path.insert(0, str(HERMES_SRC))
 
@@ -38,7 +38,7 @@ if str(HERMES_SRC) not in sys.path:
 setattr(sys, "_hermes_relaunched", True)
 os.environ.setdefault("HERMES_SKIP_PM_BOOTSTRAP", "1")
 
-OUT_DIR = Path("/home/ridlo/github/saif-agent/conformance/cases")
+OUT_DIR = Path(__file__).resolve().parent.parent / "conformance" / "cases"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 

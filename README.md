@@ -1,12 +1,30 @@
-# `saif-agent`
+# Saif Agent
 
-**100% Pure-Rust autonomous self-improving AI agent**, built from scratch for 1:1 architectural and behavioral parity with [`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent).
+**Saif Agent (`saif-agent`)** is an independent **100% pure-Rust autonomous self-improving AI agent**, built for single-binary deployment with zero Python or Node runtime dependencies while remaining compatible with the Hermes agent state, skill, and multi-profile ecosystem.
+
+## Quickstart
+
+```bash
+# Build native release binaries (`saif`, `saif-acp`)
+cargo build --release --bins
+
+# Verify environment & configuration
+./target/release/saif doctor
+./target/release/saif status
+
+# Launch interactive TUI or Web/WASM dashboard
+./target/release/saif --tui
+./target/release/saif dashboard
+
+# Preview non-destructive migration from an existing ~/.hermes installation
+./target/release/saif migrate --from-hermes --dry-run
+```
 
 ## Architecture Overview
 
 - **Zero Python / Node Runtime**: Single statically compiled native binaries (`saif`, `saif-acp`) plus pure-Rust UI surfaces (`ratatui` TUI, `axum` + `portable-pty` + WASM Dashboard, Tauri v2 Desktop).
-- **Behavioral Oracle Parity (`rust-anything` + Golden `.jsonl` Replay)**: Verified against `120` golden recordings across `10` `.jsonl` suites extracted directly from `NousResearch/hermes-agent` (`conformance/cases/*.jsonl`), tracked cleanly via `conformance/UPSTREAM_LOCK.json` and `saif upstream`.
-- **State Home & Compatibility**: Uses `~/.saif` (`SAIF_HOME`) with isolated multi-profile islands (`~/.saif/profiles/<name>/`) and multi-profile `saif migrate --from-hermes`. Default persona (`DEFAULT_AGENT_IDENTITY`) stays neutral upstream Hermes unless customized via `$SAIF_HOME/SOUL.md`.
+- **Behavioral Oracle Parity & Upstream Tracking**: Verified against `120` golden recordings across `10` `.jsonl` suites (`conformance/cases/*.jsonl`), tracked cleanly via `conformance/UPSTREAM_LOCK.json` and `saif upstream`.
+- **State Home & Compatibility**: Uses `~/.saif` (`SAIF_HOME`) with isolated multi-profile islands (`~/.saif/profiles/<name>/`) and multi-profile `saif migrate --from-hermes`. Default persona (`DEFAULT_AGENT_IDENTITY`) stays neutral unless customized via `$SAIF_HOME/SOUL.md`.
 
 ## Workspace Crates (Waves 1–6 + Runtime Wiring & Upstream Sync Complete)
 
@@ -38,3 +56,11 @@
 - [rust/MAP.md](rust/MAP.md) — Complete Wave 1–6 & Phases 1–7 tracker & verification metrics
 - [rust/DECISIONS.md](rust/DECISIONS.md) — Architecture Decision Records (`ADR-001`..`ADR-011`)
 - [rust/GLOSSARY.md](rust/GLOSSARY.md) — 1:1 symbol glossary (`hermes-agent` -> `saif-agent`)
+
+## Acknowledgments
+
+Saif Agent draws upon the foundational agent architecture, SQLite/FTS5 state schema, and behavioral specifications of [`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent) (MIT License). Saif Agent is an independent pure-Rust implementation and is not affiliated with, endorsed by, or sponsored by Nous Research.
+
+## License
+
+Released under the [MIT License](LICENSE). See [NOTICE](NOTICE) for upstream attribution details and [SECURITY.md](SECURITY.md) for responsible vulnerability reporting.
