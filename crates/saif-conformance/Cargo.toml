@@ -13,14 +13,18 @@ saif-persistence = { path = "../saif-persistence" }
 saif-platform = { path = "../saif-platform" }
 saif-plugins = { path = "../saif-plugins" }
 saif-providers = { path = "../saif-providers" }
+saif-rpc-contract = { path = "../saif-rpc-contract" }
 saif-skills = { path = "../saif-skills" }
 saif-tools = { path = "../saif-tools" }
 saif-web = { path = "../saif-web" }
 async-trait.workspace = true
 axum.workspace = true
 chrono.workspace = true
+futures-util.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
+tokio-tungstenite.workspace = true
 tokio-util.workspace = true

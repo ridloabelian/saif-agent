@@ -167,6 +167,20 @@ pub fn register_default_toolsets() -> ToolsetCatalog {
             "kanban_block".into(),
         ],
     );
+    cat.insert(
+        "browser",
+        vec!["browser_exec".into(), "browser_vault".into()],
+    );
+    cat.insert("code_execution", vec!["execute_code".into()]);
+    cat.insert("computer_use", vec!["computer_use".into()]);
+    cat.insert(
+        "tts",
+        vec!["text_to_speech".into(), "speech_to_text".into()],
+    );
+    cat.insert(
+        "media",
+        vec!["image_generate".into(), "video_generate".into()],
+    );
     cat
 }
 

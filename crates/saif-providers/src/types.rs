@@ -19,6 +19,8 @@ pub enum ProviderError {
     },
     #[error("context window overflow: {0}")]
     ContextOverflow(String),
+    #[error("authentication error: {0}")]
+    Auth(String),
     #[error("transport error: {0}")]
     Transport(String),
 }
@@ -123,7 +125,7 @@ pub struct UsageMetrics {
     pub reasoning_tokens: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LlmRequest {
     pub model: String,
     pub messages: Vec<ChatMessage>,
@@ -132,6 +134,8 @@ pub struct LlmRequest {
     pub max_tokens: Option<u32>,
     pub reasoning_effort: Option<String>,
     pub stream: bool,
+    #[serde(default)]
+    pub session_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

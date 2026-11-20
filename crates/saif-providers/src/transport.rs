@@ -554,7 +554,11 @@ impl LlmTransport for AnthropicMessagesTransport {
     }
 }
 
-fn classify_http_error(status: u16, retry_after_secs: Option<u64>, body: String) -> ProviderError {
+pub(crate) fn classify_http_error(
+    status: u16,
+    retry_after_secs: Option<u64>,
+    body: String,
+) -> ProviderError {
     if status == 429 {
         return ProviderError::RateLimited {
             retry_after_secs,
@@ -572,18 +576,49 @@ fn classify_http_error(status: u16, retry_after_secs: Option<u64>, body: String)
     ProviderError::ApiStatus { status, body }
 }
 
+/// Unified transport bundle covering OpenAI Chat, Anthropic Messages, Codex Responses, and AWS Bedrock Converse.
+#[derive(Clone, Default)]
+pub struct TransportRouter {
+    pub openai: OpenAiChatTransport,
+    pub anthropic: AnthropicMessagesTransport,
+    pub codex: crate::codex::CodexResponsesTransport,
+    pub bedrock: crate::bedrock::BedrockConverseTransport,
+}
+
+impl TransportRouter {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn dispatch(
+        &self,
+        route: &ResolvedRoute,
+        request: &LlmRequest,
+        stream_tx: Option<mpsc::UnboundedSender<StreamChunk>>,
+    ) -> Result<LlmResponse, ProviderError> {
+        match route.api_mode {
+            crate::catalog::ApiMode::AnthropicMessages => {
+                self.anthropic.complete(route, request, stream_tx).await
+            }
+            crate::catalog::ApiMode::CodexResponses => {
+                self.codex.complete(route, request, stream_tx).await
+            }
+            crate::catalog::ApiMode::Bedrock => {
+                self.bedrock.complete(route, request, stream_tx).await
+            }
+            crate::catalog::ApiMode::ChatCompletions => {
+                self.openai.complete(route, request, stream_tx).await
+            }
+        }
+    }
+}
+
 /// Convenience helper for dispatching according to `ResolvedRoute.api_mode`.
 pub async fn dispatch_completion(
-    openai: &OpenAiChatTransport,
-    anthropic: &AnthropicMessagesTransport,
+    router: &TransportRouter,
     route: &ResolvedRoute,
     request: &LlmRequest,
     stream_tx: Option<mpsc::UnboundedSender<StreamChunk>>,
 ) -> Result<LlmResponse, ProviderError> {
-    match route.api_mode {
-        crate::catalog::ApiMode::AnthropicMessages => {
-            anthropic.complete(route, request, stream_tx).await
-        }
-        _ => openai.complete(route, request, stream_tx).await,
-    }
+    router.dispatch(route, request, stream_tx).await
 }

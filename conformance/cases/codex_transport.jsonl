@@ -1,0 +1,14 @@
+{"op": "bounded_prompt_cache_key", "input": null, "expected": null}
+{"op": "bounded_prompt_cache_key", "input": "", "expected": null}
+{"op": "bounded_prompt_cache_key", "input": "   ", "expected": null}
+{"op": "bounded_prompt_cache_key", "input": "sess_short_123", "expected": "sess_short_123"}
+{"op": "bounded_prompt_cache_key", "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+{"op": "bounded_prompt_cache_key", "input": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "expected": "pck_74b128f30cf83de43ddf4aaf"}
+{"op": "bounded_prompt_cache_key", "input": "agent:profile_alpha:telegram:12345678901234567890123456789012345678901234567890", "expected": "pck_4c78f19a286498576102c8fa"}
+{"op": "cache_scope_from_session_id", "session_id": "cron_daily_digest_20261120_090000", "expected": "cron_daily_digest"}
+{"op": "cache_scope_from_session_id", "session_id": "cron_backup_01_20260101_235959", "expected": "cron_backup_01"}
+{"op": "cache_scope_from_session_id", "session_id": "sess_regular_99", "expected": "sess_regular_99"}
+{"op": "cache_scope_from_session_id", "session_id": "agent:main:cli:interactive", "expected": "agent:main:cli:interactive"}
+{"op": "alias_reserved_tools", "tools": ["read_file", "tool_search", "web_search", "search_files"], "reserved": ["tool_search"], "expected_tools": ["read_file", "hermes_tool_search", "web_search", "search_files"], "expected_alias_map": {"hermes_tool_search": "tool_search"}}
+{"op": "alias_reserved_tools", "tools": ["read_file", "tool_search", "web_search", "search_files"], "reserved": ["web_search", "search_files"], "expected_tools": ["read_file", "tool_search", "hermes_web_search", "hermes_search_files"], "expected_alias_map": {"hermes_web_search": "web_search", "hermes_search_files": "search_files"}}
+{"op": "alias_reserved_tools", "tools": ["read_file", "tool_search", "web_search", "search_files"], "reserved": ["tool_search", "web_search"], "expected_tools": ["read_file", "hermes_tool_search", "hermes_web_search", "search_files"], "expected_alias_map": {"hermes_tool_search": "tool_search", "hermes_web_search": "web_search"}}

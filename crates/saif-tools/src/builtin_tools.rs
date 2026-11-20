@@ -1,5 +1,11 @@
+use crate::browser::{handle_browser_exec, handle_browser_vault, CdpSupervisorRegistry};
+use crate::cloud_env::{DaytonaEnv, ModalEnv, VercelSandboxEnv};
+use crate::code_exec::{handle_computer_use, handle_execute_code};
 use crate::env::{DockerEnv, ExecutionEnvironment, LocalEnv, ProcessRegistry, SshEnv};
 use crate::fs_tools::{handle_patch, handle_read_file, handle_search_files, handle_write_file};
+use crate::media_tools::{
+    handle_image_generate, handle_speech_to_text, handle_text_to_speech, handle_video_generate,
+};
 use crate::registry::{ToolContext, ToolError, ToolHandler, ToolRegistry};
 use crate::web_tools::{handle_web_extract, handle_web_search};
 use async_trait::async_trait;
@@ -46,6 +52,20 @@ pub fn register_all_builtin_tools(
     registry: &ToolRegistry,
     proc_registry: ProcessRegistry,
     todo_store: TodoStore,
+) {
+    register_all_builtin_tools_with_cdp(
+        registry,
+        proc_registry,
+        todo_store,
+        CdpSupervisorRegistry::new(),
+    );
+}
+
+pub fn register_all_builtin_tools_with_cdp(
+    registry: &ToolRegistry,
+    proc_registry: ProcessRegistry,
+    todo_store: TodoStore,
+    cdp_supervisors: CdpSupervisorRegistry,
 ) {
     let tools: Vec<Arc<dyn ToolHandler>> = vec![
         Arc::new(SimpleTool::new(
@@ -284,6 +304,97 @@ pub fn register_all_builtin_tools(
             }),
             |args, ctx| Box::pin(async move { handle_kanban_block(&args, &ctx) }),
         )),
+        Arc::new(SimpleTool::new(
+            "computer_use",
+            "computer_use",
+            "Capture screen or send GUI pointer/keyboard input on active desktop display.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "action": { "type": "string", "enum": ["screenshot", "mouse_move", "left_click", "right_click", "type_text", "key_press", "cursor_position"] },
+                    "x": { "type": "integer" },
+                    "y": { "type": "integer" },
+                    "text": { "type": "string" },
+                    "dry_run": { "type": "boolean" }
+                },
+                "required": ["action"]
+            }),
+            |args, ctx| Box::pin(async move { handle_computer_use(&args, &ctx).await }),
+        )),
+        Arc::new(SimpleTool::new(
+            "text_to_speech",
+            "tts",
+            "Synthesize speech to audio file via OpenAI, ElevenLabs, xAI, or Gemini.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "text": { "type": "string" },
+                    "provider": { "type": "string" },
+                    "output_path": { "type": "string" },
+                    "voice": { "type": "string" },
+                    "speed": { "type": "number" },
+                    "api_base_url": { "type": "string" }
+                },
+                "required": ["text"]
+            }),
+            |args, ctx| Box::pin(async move { handle_text_to_speech(&args, &ctx).await }),
+        )),
+        Arc::new(SimpleTool::new(
+            "speech_to_text",
+            "tts",
+            "Transcribe an audio file into text.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "audio_path": { "type": "string" },
+                    "model": { "type": "string" },
+                    "api_base_url": { "type": "string" }
+                },
+                "required": ["audio_path"]
+            }),
+            |args, ctx| Box::pin(async move { handle_speech_to_text(&args, &ctx).await }),
+        )),
+        Arc::new(SimpleTool::new(
+            "image_generate",
+            "media",
+            "Generate images from a text prompt.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "prompt": { "type": "string" },
+                    "output_path": { "type": "string" },
+                    "size": { "type": "string" },
+                    "model": { "type": "string" },
+                    "api_base_url": { "type": "string" }
+                },
+                "required": ["prompt"]
+            }),
+            |args, ctx| Box::pin(async move { handle_image_generate(&args, &ctx).await }),
+        )),
+        Arc::new(SimpleTool::new(
+            "video_generate",
+            "media",
+            "Generate video clips from a text prompt.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "prompt": { "type": "string" },
+                    "model": { "type": "string" },
+                    "api_base_url": { "type": "string" }
+                },
+                "required": ["prompt"]
+            }),
+            |args, ctx| Box::pin(async move { handle_video_generate(&args, &ctx).await }),
+        )),
+        Arc::new(BrowserExecTool {
+            supervisors: cdp_supervisors.clone(),
+        }),
+        Arc::new(BrowserVaultTool {
+            supervisors: cdp_supervisors,
+        }),
+        Arc::new(ExecuteCodeTool {
+            registry: registry.clone(),
+        }),
         Arc::new(ToolSearchTool {
             registry: registry.clone(),
         }),
@@ -435,6 +546,57 @@ impl ToolHandler for TerminalTool {
                     .execute(command, &cwd, &env_vars, Duration::from_secs(timeout_secs))
                     .await?
             }
+            "modal" => {
+                let url = ctx
+                    .config
+                    .extra
+                    .get("modal_api_url")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("https://api.modal.com");
+                ModalEnv::new(
+                    url,
+                    ctx.profile.secrets.get_secret("MODAL_TOKEN_ID"),
+                    ctx.profile.secrets.get_secret("MODAL_TOKEN_SECRET"),
+                    &ctx.config.terminal.docker_image,
+                    ctx.task_id.as_deref().unwrap_or(&ctx.session_id),
+                    ctx.profile.home_dir.clone(),
+                )
+                .execute(command, &cwd, &env_vars, Duration::from_secs(timeout_secs))
+                .await?
+            }
+            "daytona" => {
+                let url = ctx
+                    .config
+                    .extra
+                    .get("daytona_api_url")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("https://app.daytona.io/api");
+                DaytonaEnv::new(
+                    url,
+                    ctx.profile.secrets.get_secret("DAYTONA_API_KEY"),
+                    &ctx.config.terminal.docker_image,
+                    ctx.task_id.as_deref().unwrap_or(&ctx.session_id),
+                    10_240,
+                )
+                .execute(command, &cwd, &env_vars, Duration::from_secs(timeout_secs))
+                .await?
+            }
+            "vercel_sandbox" => {
+                let url = ctx
+                    .config
+                    .extra
+                    .get("vercel_sandbox_api_url")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("https://api.vercel.com");
+                VercelSandboxEnv::new(
+                    url,
+                    ctx.profile.secrets.get_secret("VERCEL_TOKEN"),
+                    ctx.task_id.as_deref().unwrap_or(&ctx.session_id),
+                    ctx.profile.home_dir.clone(),
+                )
+                .execute(command, &cwd, &env_vars, Duration::from_secs(timeout_secs))
+                .await?
+            }
             _ => {
                 LocalEnv
                     .execute(command, &cwd, &env_vars, Duration::from_secs(timeout_secs))
@@ -547,6 +709,108 @@ impl ToolHandler for TodoTool {
         }
         let items = self.todo_store.get(&ctx.session_id);
         Ok(json!({ "success": true, "todos": items }).to_string())
+    }
+}
+
+struct BrowserExecTool {
+    supervisors: CdpSupervisorRegistry,
+}
+
+#[async_trait]
+impl ToolHandler for BrowserExecTool {
+    fn name(&self) -> &str {
+        "browser_exec"
+    }
+    fn toolset(&self) -> &str {
+        "browser"
+    }
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "browser_exec".to_string(),
+            description: "Control a supervised Chromium session over WebSocket CDP.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "action": { "type": "string", "enum": ["attach", "navigate", "eval", "click", "screenshot"] },
+                    "cdp_url": { "type": "string" },
+                    "url": { "type": "string" },
+                    "expression": { "type": "string" },
+                    "x": { "type": "number" },
+                    "y": { "type": "number" }
+                },
+                "required": ["action"]
+            }),
+        }
+    }
+    async fn execute(&self, args: Value, ctx: &ToolContext) -> Result<String, ToolError> {
+        handle_browser_exec(&args, ctx, &self.supervisors).await
+    }
+}
+
+struct BrowserVaultTool {
+    supervisors: CdpSupervisorRegistry,
+}
+
+#[async_trait]
+impl ToolHandler for BrowserVaultTool {
+    fn name(&self) -> &str {
+        "browser_vault"
+    }
+    fn toolset(&self) -> &str {
+        "browser"
+    }
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "browser_vault".to_string(),
+            description: "Model-blind origin-bound browser credential autofill via CDP WebSocket."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "action": { "type": "string", "enum": ["list", "save_login", "fill"] },
+                    "handle": { "type": "string" },
+                    "origin": { "type": "string" },
+                    "username": { "type": "string" },
+                    "password": { "type": "string" }
+                },
+                "required": ["action"]
+            }),
+        }
+    }
+    async fn execute(&self, args: Value, ctx: &ToolContext) -> Result<String, ToolError> {
+        handle_browser_vault(&args, ctx, &self.supervisors).await
+    }
+}
+
+struct ExecuteCodeTool {
+    registry: ToolRegistry,
+}
+
+#[async_trait]
+impl ToolHandler for ExecuteCodeTool {
+    fn name(&self) -> &str {
+        "execute_code"
+    }
+    fn toolset(&self) -> &str {
+        "code_execution"
+    }
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "execute_code".to_string(),
+            description: "Run Python script calling allowlisted saif_tools via loopback RPC."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "code": { "type": "string" },
+                    "max_tool_calls": { "type": "integer" }
+                },
+                "required": ["code"]
+            }),
+        }
+    }
+    async fn execute(&self, args: Value, ctx: &ToolContext) -> Result<String, ToolError> {
+        handle_execute_code(&args, ctx, &self.registry).await
     }
 }
 

@@ -25,7 +25,7 @@ fn cli_version_and_doctor_run_cleanly() {
         .unwrap();
     assert!(doc.status.success());
     let doc_out = String::from_utf8_lossy(&doc.stdout);
-    assert!(doc_out.contains("Providers:"));
+    assert!(doc_out.contains("24 built-in profiles"));
 }
 
 #[test]
@@ -100,4 +100,43 @@ fn cli_status_cron_kanban_profile_and_migrate_e2e() {
         .unwrap();
     assert!(mig.status.success());
     assert!(String::from_utf8_lossy(&mig.stdout).contains("config.yaml"));
+
+    let platforms = Command::new(saif_bin())
+        .args(["gateway", "platforms"])
+        .env("SAIF_HOME", &home)
+        .output()
+        .unwrap();
+    assert!(platforms.status.success());
+    let plat_out = String::from_utf8_lossy(&platforms.stdout);
+    assert_eq!(plat_out.lines().count(), 30);
+
+    let gw_mig = Command::new(saif_bin())
+        .args(["gateway", "migrate", "--multiplex"])
+        .env("SAIF_HOME", &home)
+        .output()
+        .unwrap();
+    assert!(gw_mig.status.success());
+    assert!(String::from_utf8_lossy(&gw_mig.stdout).contains("converged"));
+
+    let svc = Command::new(saif_bin())
+        .args(["gateway", "install-service", "--kind", "systemd"])
+        .env("SAIF_HOME", &home)
+        .output()
+        .unwrap();
+    assert!(svc.status.success());
+    assert!(String::from_utf8_lossy(&svc.stdout).contains("ExecStart="));
+
+    let auth_add = Command::new(saif_bin())
+        .args(["auth", "add", "openai", "k1", "sk-pool-1"])
+        .env("SAIF_HOME", &home)
+        .output()
+        .unwrap();
+    assert!(auth_add.status.success());
+    let auth_list = Command::new(saif_bin())
+        .args(["auth", "list"])
+        .env("SAIF_HOME", &home)
+        .output()
+        .unwrap();
+    assert!(auth_list.status.success());
+    assert!(String::from_utf8_lossy(&auth_list.stdout).contains("k1"));
 }

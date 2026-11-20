@@ -7,9 +7,9 @@ use saif_config::{ProfileScope, SaifConfig};
 use saif_persistence::{PersistenceStore, SqliteStore, ToolCallRecord, UsageTotals};
 use saif_plugins::{HookEvent, HookPayload, HookRegistry};
 use saif_providers::{
-    dispatch_completion, resolve_provider_route, AnthropicMessagesTransport, ChatMessage,
-    LlmRequest, LlmTransport, MessageRole, OpenAiChatTransport, ProviderError, StreamChunk,
-    ToolCall, ToolDefinition, UsageMetrics,
+    dispatch_completion, resolve_provider_route, ChatMessage, LlmRequest, LlmTransport,
+    MessageRole, ProviderError, StreamChunk, ToolCall, ToolDefinition, TransportRouter,
+    UsageMetrics,
 };
 use saif_skills::SkillStore;
 use saif_tools::{ToolContext, ToolRegistry};
@@ -145,8 +145,7 @@ pub struct AgentRunner {
     registry: ToolRegistry,
     store: Option<SqliteStore>,
     hooks: HookRegistry,
-    openai: OpenAiChatTransport,
-    anthropic: AnthropicMessagesTransport,
+    transports: TransportRouter,
     custom_transport: Option<Arc<dyn LlmTransport>>,
     delegation_semaphore: Arc<Semaphore>,
 }
@@ -166,8 +165,7 @@ impl AgentRunner {
             registry,
             store,
             hooks,
-            openai: OpenAiChatTransport::new(),
-            anthropic: AnthropicMessagesTransport::new(),
+            transports: TransportRouter::new(),
             custom_transport: None,
             delegation_semaphore: Arc::new(Semaphore::new(max_children)),
         }
@@ -372,6 +370,7 @@ impl AgentRunner {
                     max_tokens: None,
                     reasoning_effort: self.config.agent.reasoning_effort.clone(),
                     stream: event_tx.is_some(),
+                    session_id: Some(session_id.clone()),
                 };
 
                 let (chunk_tx, mut chunk_rx) = mpsc::unbounded_channel();
@@ -395,7 +394,7 @@ impl AgentRunner {
                 let resp = if let Some(custom) = &self.custom_transport {
                     custom.complete(&route, &req, tx_opt).await?
                 } else {
-                    dispatch_completion(&self.openai, &self.anthropic, &route, &req, tx_opt).await?
+                    dispatch_completion(&self.transports, &route, &req, tx_opt).await?
                 };
                 if let Some(h) = forward_handle {
                     let _ = h.await;

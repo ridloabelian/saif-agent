@@ -7,8 +7,10 @@ license.workspace = true
 [dependencies]
 saif-config = { path = "../saif-config" }
 saif-core = { path = "../saif-core" }
+saif-cron = { path = "../saif-cron" }
 saif-persistence = { path = "../saif-persistence" }
 saif-rpc-contract = { path = "../saif-rpc-contract" }
+saif-skills = { path = "../saif-skills" }
 anyhow.workspace = true
 axum.workspace = true
 futures-util.workspace = true

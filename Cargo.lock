@@ -1817,6 +1817,8 @@ dependencies = [
  "async-trait",
  "axum",
  "chrono",
+ "futures-util",
+ "reqwest",
  "saif-config",
  "saif-core",
  "saif-cron",
@@ -1825,6 +1827,7 @@ dependencies = [
  "saif-platform",
  "saif-plugins",
  "saif-providers",
+ "saif-rpc-contract",
  "saif-skills",
  "saif-tools",
  "saif-web",
@@ -1832,6 +1835,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tokio-tungstenite",
  "tokio-util",
 ]
 
@@ -1877,12 +1881,14 @@ name = "saif-gateway"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "hex",
  "reqwest",
  "saif-config",
  "saif-core",
  "saif-persistence",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "tokio-util",
  "tracing",
@@ -1929,14 +1935,20 @@ name = "saif-providers"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "futures-util",
+ "hex",
+ "rand 0.9.5",
+ "regex",
  "reqwest",
  "saif-config",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -1967,7 +1979,11 @@ name = "saif-tools"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
+ "futures-util",
+ "hex",
  "ignore",
+ "rand 0.9.5",
  "regex",
  "reqwest",
  "saif-config",
@@ -1978,10 +1994,14 @@ dependencies = [
  "saif-skills",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-tungstenite",
+ "tokio-util",
  "tracing",
+ "url",
  "uuid",
 ]
 
@@ -2015,8 +2035,10 @@ dependencies = [
  "portable-pty",
  "saif-config",
  "saif-core",
+ "saif-cron",
  "saif-persistence",
  "saif-rpc-contract",
+ "saif-skills",
  "serde",
  "serde_json",
  "tokio",

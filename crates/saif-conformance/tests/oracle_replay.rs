@@ -3,7 +3,7 @@ use saif_config::{
     named_profile_has_identity, named_profile_has_servable_identity, named_profile_is_deleted,
     named_profile_is_live,
 };
-use saif_core::scan_context_content;
+use saif_core::{scan_context_content, tool_call_succeeded};
 use saif_cron::{
     compute_grace_seconds, normalize_repeat_value, parse_duration, parse_schedule, CronSchedule,
     RepeatInput,
@@ -11,12 +11,19 @@ use saif_cron::{
 use saif_persistence::{
     shape_preview, PersistenceStore, SqliteStore, FTS_TOOL_CONTENT_PREFIX_CHARS,
 };
+use saif_providers::{
+    alias_reserved_tools, bounded_prompt_cache_key, cache_scope_from_session_id, ToolDefinition,
+};
 use saif_skills::{
     clip_skill_description, extract_skill_description, is_skill_description_truncated_for_prompt,
     parse_frontmatter, scan_for_threats, ThreatScope,
 };
-use saif_tools::{fuzzy_find_and_replace, parse_v4a_patch};
-use serde_json::Value;
+use saif_tools::{
+    config_bool, fuzzy_find_and_replace, parse_v4a_patch, truncate_stdout_bytes,
+    tts_response_format_from_path,
+};
+use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -387,5 +394,121 @@ fn replay_profile_paths_oracle() {
             named_profile_is_live(&pdir),
             case["is_live"].as_bool().unwrap()
         );
+    }
+}
+
+#[test]
+fn replay_codex_transport_oracle() {
+    let cases = load_jsonl("codex_transport.jsonl");
+    assert_eq!(cases.len(), 14);
+
+    for case in cases {
+        match case["op"].as_str().unwrap() {
+            "bounded_prompt_cache_key" => {
+                let got = bounded_prompt_cache_key(case["input"].as_str());
+                assert_eq!(got.as_deref(), case["expected"].as_str());
+            }
+            "cache_scope_from_session_id" => {
+                let got = cache_scope_from_session_id(case["session_id"].as_str().unwrap());
+                assert_eq!(got, case["expected"].as_str().unwrap());
+            }
+            "alias_reserved_tools" => {
+                let tools: Vec<ToolDefinition> = case["tools"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|n| ToolDefinition {
+                        name: n.as_str().unwrap().to_string(),
+                        description: "d".to_string(),
+                        parameters: json!({ "type": "object" }),
+                    })
+                    .collect();
+                let reserved: Vec<&str> = case["reserved"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|n| n.as_str().unwrap())
+                    .collect();
+                let (rewritten, alias_map) = alias_reserved_tools(&tools, &reserved);
+                let got_names: Vec<String> = rewritten.into_iter().map(|t| t.name).collect();
+                let exp_names: Vec<String> = case["expected_tools"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|n| n.as_str().unwrap().to_string())
+                    .collect();
+                assert_eq!(got_names, exp_names);
+                let exp_map: BTreeMap<String, String> =
+                    serde_json::from_value(case["expected_alias_map"].clone()).unwrap();
+                assert_eq!(alias_map, exp_map);
+            }
+            other => panic!("unexpected codex oracle op {other}"),
+        }
+    }
+}
+
+#[test]
+fn replay_batch_sharegpt_oracle() {
+    let cases = load_jsonl("batch_sharegpt.jsonl");
+    assert_eq!(cases.len(), 9);
+
+    for case in cases {
+        assert_eq!(case["op"].as_str().unwrap(), "tool_call_succeeded");
+        let name = case["name"].as_str().unwrap();
+        let content = case["content"].as_str().unwrap();
+        let expected = case["expected"].as_bool().unwrap();
+        assert_eq!(
+            tool_call_succeeded(content),
+            expected,
+            "mismatch for {name}"
+        );
+    }
+}
+
+#[test]
+fn replay_media_exec_helpers_oracle() {
+    let cases = load_jsonl("media_exec_helpers.jsonl");
+    assert_eq!(cases.len(), 18);
+
+    for case in cases {
+        match case["op"].as_str().unwrap() {
+            "tts_response_format_from_path" => {
+                let got = tts_response_format_from_path(case["path"].as_str().unwrap());
+                assert_eq!(got, case["expected"].as_str().unwrap());
+            }
+            "config_bool" => {
+                let got = config_bool(
+                    case["raw"].as_str().unwrap(),
+                    case["default"].as_bool().unwrap(),
+                );
+                assert_eq!(got, case["expected"].as_bool().unwrap());
+            }
+            "truncate_stdout_text" => {
+                let n = case["input_bytes"].as_u64().unwrap() as usize;
+                let text = "A".repeat(n);
+                let (out, meta) = truncate_stdout_bytes(&text, None);
+                assert_eq!(
+                    meta["stdout_truncated"].as_bool().unwrap(),
+                    case["expected_truncated"].as_bool().unwrap()
+                );
+                assert_eq!(
+                    meta["stdout_bytes_captured"].as_u64().unwrap(),
+                    case["expected_bytes_captured"].as_u64().unwrap()
+                );
+                assert_eq!(
+                    meta["stdout_bytes_total"].as_u64().unwrap(),
+                    case["expected_bytes_total"].as_u64().unwrap()
+                );
+                assert_eq!(
+                    meta["stdout_bytes_omitted"].as_u64().unwrap(),
+                    case["expected_bytes_omitted"].as_u64().unwrap()
+                );
+                assert_eq!(
+                    out.to_ascii_lowercase().contains("truncated"),
+                    case["has_truncation_marker"].as_bool().unwrap()
+                );
+            }
+            other => panic!("unexpected media/exec oracle op {other}"),
+        }
     }
 }

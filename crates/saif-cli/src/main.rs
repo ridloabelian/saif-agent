@@ -4,13 +4,16 @@ use saif_config::{
     load_config, mark_named_profile_deleted, migrate_from_hermes, validate_profile_id,
     ProfileScope, SaifConfig, SecretScope,
 };
-use saif_core::{AgentEvent, AgentRunner, TurnOptions};
+use saif_core::{run_batch_dataset, AgentEvent, AgentRunner, TurnOptions};
 use saif_cron::{CronScheduler, CronStore};
-use saif_gateway::{build_gateway_router, TelegramAdapter};
+use saif_gateway::{
+    build_gateway_router, builtin_platform_specs, converge_multiplex_migration,
+    render_service_unit, GatewayHttpState, GatewayMultiplexer, ServiceKind, TelegramAdapter,
+};
 use saif_persistence::{KanbanStore, PersistenceStore, SqliteStore, TaskStatus};
 use saif_platform::{ExecutableResolver, HostFacts};
 use saif_plugins::{HookRegistry, PluginManager};
-use saif_providers::{builtin_providers, ChatMessage};
+use saif_providers::{builtin_providers, ChatMessage, CredentialPool};
 use saif_skills::{Curator, SkillStore};
 use saif_tools::{
     register_all_builtin_tools, McpTrustStore, ProcessRegistry, TodoStore, ToolRegistry,
@@ -145,13 +148,38 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Batch-process a JSONL prompt dataset
+    /// Batch-process a JSONL prompt dataset in parallel with optional ShareGPT export & --resume
     Batch {
         #[arg(long)]
         input: PathBuf,
         #[arg(long)]
         output: PathBuf,
+        #[arg(long, default_value_t = 4)]
+        workers: usize,
+        #[arg(long)]
+        resume: bool,
+        #[arg(long, default_value = "sharegpt")]
+        format: String,
     },
+    /// Manage multi-credential auth failover pool
+    Auth {
+        #[command(subcommand)]
+        action: AuthAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum AuthAction {
+    List {
+        #[arg(long)]
+        provider: Option<String>,
+    },
+    Add {
+        provider: String,
+        id: String,
+        secret: String,
+    },
+    Status,
 }
 
 #[derive(Subcommand)]
@@ -275,6 +303,19 @@ enum GatewayAction {
     Run {
         #[arg(long, default_value = "127.0.0.1:8788")]
         listen: SocketAddr,
+    },
+    Platforms,
+    Migrate {
+        #[arg(long)]
+        multiplex: bool,
+    },
+    InstallService {
+        #[arg(long, default_value = "systemd")]
+        kind: String,
+        #[arg(long, default_value = "127.0.0.1:8788")]
+        listen: SocketAddr,
+        #[arg(long)]
+        output: Option<PathBuf>,
     },
 }
 
@@ -671,37 +712,91 @@ async fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Some(Commands::Gateway { action }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
-            match action {
-                GatewayAction::Run { listen } => {
-                    ProfileScope::run_scoped(Arc::clone(&rt.profile), async move {
-                        if let Some(tg_token) = rt.profile.secrets.get_secret("TELEGRAM_BOT_TOKEN")
-                        {
-                            let allow_all = rt.cfg.gateway.allow_all_users;
-                            let tg_agent = rt.agent.clone();
-                            let tg_cwd = rt.cwd.clone();
-                            let pname = rt.profile.profile_name.clone();
-                            tokio::spawn(async move {
-                                let mut adapter =
-                                    TelegramAdapter::new(tg_token, pname, allow_all, Vec::new());
-                                let _ = adapter.run_polling(tg_agent, tg_cwd).await;
-                            });
-                        }
-                        let router =
-                            build_gateway_router(saif_gateway::api_server::GatewayHttpState {
-                                agent: rt.agent,
-                                cwd: rt.cwd,
-                            });
-                        let listener = tokio::net::TcpListener::bind(listen).await?;
-                        println!("saif-gateway listening on http://{listen}");
-                        axum::serve(listener, router).await?;
-                        Ok(())
-                    })
-                    .await
+        Some(Commands::Gateway { action }) => match action {
+            GatewayAction::Platforms => {
+                for spec in builtin_platform_specs() {
+                    println!(
+                        "{}\t{}\tmax_chars={}\tedit={}",
+                        spec.id, spec.display_name, spec.max_chars, spec.supports_edit
+                    );
                 }
+                Ok(())
             }
-        }
+            GatewayAction::Migrate { multiplex } => {
+                if !multiplex {
+                    anyhow::bail!("pass --multiplex to converge gateways onto host multiplexer");
+                }
+                let root = default_saif_root();
+                let manifest =
+                    converge_multiplex_migration(&root).map_err(|e| anyhow::anyhow!(e))?;
+                println!("{}", serde_json::to_string_pretty(&manifest)?);
+                Ok(())
+            }
+            GatewayAction::InstallService {
+                kind,
+                listen,
+                output,
+            } => {
+                let svc_kind = ServiceKind::parse(&kind).map_err(|e| anyhow::anyhow!(e))?;
+                let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("saif"));
+                let root = default_saif_root();
+                let rendered = render_service_unit(svc_kind, &exe, &root, listen);
+                if let Some(path) = output {
+                    if let Some(parent) = path.parent() {
+                        fs::create_dir_all(parent)?;
+                    }
+                    fs::write(&path, &rendered)?;
+                    println!("Wrote service unit -> {}", path.display());
+                } else {
+                    print!("{rendered}");
+                }
+                Ok(())
+            }
+            GatewayAction::Run { listen } => {
+                let rt = build_runtime(cli.profile.as_deref())?;
+                let root = default_saif_root();
+                let mut mux = GatewayMultiplexer::new(&rt.profile.profile_name);
+                mux.add_slot(
+                    Arc::clone(&rt.profile),
+                    Arc::clone(&rt.cfg),
+                    rt.agent.clone(),
+                );
+                for (name, _) in list_live_profiles(&root) {
+                    if name != rt.profile.profile_name {
+                        if let Ok(slot_rt) = build_runtime(Some(&name)) {
+                            mux.add_slot(slot_rt.profile, slot_rt.cfg, slot_rt.agent);
+                        }
+                    }
+                }
+                mux.preflight_credential_conflicts()
+                    .map_err(|e| anyhow::anyhow!(e))?;
+                let mux_arc = Arc::new(mux);
+
+                ProfileScope::run_scoped(Arc::clone(&rt.profile), async move {
+                    if let Some(tg_token) = rt.profile.secrets.get_secret("TELEGRAM_BOT_TOKEN") {
+                        let allow_all = rt.cfg.gateway.allow_all_users;
+                        let tg_agent = rt.agent.clone();
+                        let tg_cwd = rt.cwd.clone();
+                        let pname = rt.profile.profile_name.clone();
+                        tokio::spawn(async move {
+                            let mut adapter =
+                                TelegramAdapter::new(tg_token, pname, allow_all, Vec::new());
+                            let _ = adapter.run_polling(tg_agent, tg_cwd).await;
+                        });
+                    }
+                    let router = build_gateway_router(GatewayHttpState {
+                        agent: rt.agent,
+                        cwd: rt.cwd,
+                        multiplexer: Some(mux_arc),
+                    });
+                    let listener = tokio::net::TcpListener::bind(listen).await?;
+                    println!("saif-gateway listening on http://{listen}");
+                    axum::serve(listener, router).await?;
+                    Ok(())
+                })
+                .await
+            }
+        },
         Some(Commands::Serve { listen }) => {
             let rt = build_runtime(cli.profile.as_deref())?;
             let state = build_web_state(rt, true);
@@ -766,38 +861,88 @@ async fn main() -> anyhow::Result<()> {
             println!("{}", serde_json::to_string_pretty(&report)?);
             Ok(())
         }
-        Some(Commands::Batch { input, output }) => {
+        Some(Commands::Batch {
+            input,
+            output,
+            workers,
+            resume,
+            format,
+        }) => {
             let rt = build_runtime(cli.profile.as_deref())?;
-            let raw = fs::read_to_string(&input)?;
-            let mut out_lines = Vec::new();
-            for line in raw.lines() {
-                if line.trim().is_empty() {
-                    continue;
+            if format == "raw" {
+                let raw = fs::read_to_string(&input)?;
+                let mut out_lines = Vec::new();
+                for line in raw.lines() {
+                    if line.trim().is_empty() {
+                        continue;
+                    }
+                    let item: serde_json::Value = serde_json::from_str(line)?;
+                    let prompt = item.get("prompt").and_then(|v| v.as_str()).unwrap_or("");
+                    let opts = TurnOptions {
+                        source: "batch".to_string(),
+                        skip_persistence: true,
+                        cwd: rt.cwd.clone(),
+                        ..TurnOptions::default()
+                    };
+                    let outcome = rt
+                        .agent
+                        .run_conversation(prompt, None, opts, None, CancellationToken::new(), None)
+                        .await?;
+                    out_lines.push(serde_json::to_string(&serde_json::json!({
+                        "prompt": prompt,
+                        "response": outcome.final_response,
+                        "usage": outcome.usage
+                    }))?);
                 }
-                let item: serde_json::Value = serde_json::from_str(line)?;
-                let prompt = item.get("prompt").and_then(|v| v.as_str()).unwrap_or("");
-                let opts = TurnOptions {
-                    source: "batch".to_string(),
-                    skip_persistence: true,
-                    cwd: rt.cwd.clone(),
-                    ..TurnOptions::default()
-                };
-                let outcome = rt
-                    .agent
-                    .run_conversation(prompt, None, opts, None, CancellationToken::new(), None)
-                    .await?;
-                out_lines.push(serde_json::to_string(&serde_json::json!({
-                    "prompt": prompt,
-                    "response": outcome.final_response,
-                    "usage": outcome.usage
-                }))?);
+                fs::write(&output, out_lines.join("\n") + "\n")?;
+                println!(
+                    "Processed {} raw batch entries -> {}",
+                    out_lines.len(),
+                    output.display()
+                );
+            } else {
+                let recs =
+                    run_batch_dataset(rt.agent, &input, &output, workers, resume, rt.cwd).await?;
+                println!(
+                    "Processed {} ShareGPT batch entries -> {}",
+                    recs.len(),
+                    output.display()
+                );
             }
-            fs::write(&output, out_lines.join("\n") + "\n")?;
-            println!(
-                "Processed {} batch entries -> {}",
-                out_lines.len(),
-                output.display()
-            );
+            Ok(())
+        }
+        Some(Commands::Auth { action }) => {
+            let rt = build_runtime(cli.profile.as_deref())?;
+            let mut pool = CredentialPool::open(&rt.profile.home_dir);
+            match action {
+                AuthAction::List { provider } => {
+                    let entries = pool.list(provider.as_deref());
+                    for e in entries {
+                        println!(
+                            "{}\t{}\t{:?}\tuses={}\tsource={}",
+                            e.provider, e.id, e.status, e.use_count, e.source
+                        );
+                    }
+                }
+                AuthAction::Add {
+                    provider,
+                    id,
+                    secret,
+                } => {
+                    pool.add_credential(&provider, &id, &secret, "manual");
+                    pool.save()?;
+                    println!("Added pooled credential '{id}' for '{provider}'");
+                }
+                AuthAction::Status => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "strategy": pool.strategy(),
+                            "credentials": pool.list(None).len()
+                        }))?
+                    );
+                }
+            }
             Ok(())
         }
     }

@@ -42,6 +42,12 @@ pub struct ResolvedRoute {
     pub api_key: Option<String>,
     pub omit_temperature: bool,
     pub supports_prompt_caching: bool,
+    pub multiplex_active: bool,
+    pub aws_region: Option<String>,
+    pub aws_access_key_id: Option<String>,
+    pub aws_secret_access_key: Option<String>,
+    pub aws_session_token: Option<String>,
+    pub aws_profile: Option<String>,
 }
 
 pub fn builtin_providers() -> Vec<ProviderProfile> {
@@ -287,6 +293,42 @@ pub fn builtin_providers() -> Vec<ProviderProfile> {
             supports_prompt_caching: false,
         },
         ProviderProfile {
+            id: "bedrock",
+            display_name: "AWS Bedrock Converse",
+            base_url: "https://bedrock-runtime.us-east-1.amazonaws.com",
+            api_mode: ApiMode::Bedrock,
+            auth_type: AuthType::OAuth,
+            env_var: "AWS_ACCESS_KEY_ID",
+            default_model: "us.anthropic.claude-sonnet-4-20250514-v1:0",
+            default_aux_model: "us.anthropic.claude-3-5-haiku-20241022-v1:0",
+            omit_temperature: false,
+            supports_prompt_caching: true,
+        },
+        ProviderProfile {
+            id: "vertex",
+            display_name: "Google Vertex AI",
+            base_url: "https://us-central1-aiplatform.googleapis.com/v1/projects/default/locations/us-central1/endpoints/openapi",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::OAuth,
+            env_var: "VERTEX_API_KEY",
+            default_model: "google/gemini-2.5-pro",
+            default_aux_model: "google/gemini-2.5-flash",
+            omit_temperature: false,
+            supports_prompt_caching: true,
+        },
+        ProviderProfile {
+            id: "azure-openai",
+            display_name: "Azure OpenAI / Entra",
+            base_url: "https://models.inference.ai.azure.com",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::OAuth,
+            env_var: "AZURE_OPENAI_API_KEY",
+            default_model: "gpt-4.1",
+            default_aux_model: "gpt-4.1-mini",
+            omit_temperature: false,
+            supports_prompt_caching: true,
+        },
+        ProviderProfile {
             id: "custom",
             display_name: "Custom OpenAI-Compatible",
             base_url: "http://127.0.0.1:8000/v1",
@@ -355,14 +397,40 @@ pub fn resolve_provider_route(
         });
     }
 
+    let multiplex_active = secrets.is_multiplex();
+    let aws_region = secrets
+        .get_secret("AWS_REGION")
+        .or_else(|| secrets.get_secret("AWS_DEFAULT_REGION"))
+        .or_else(|| Some("us-east-1".to_string()));
+    let aws_access_key_id = secrets.get_secret("AWS_ACCESS_KEY_ID");
+    let aws_secret_access_key = secrets.get_secret("AWS_SECRET_ACCESS_KEY");
+    let aws_session_token = secrets.get_secret("AWS_SESSION_TOKEN");
+    let aws_profile = secrets.get_secret("AWS_PROFILE");
+
+    let resolved_base =
+        if api_mode == ApiMode::Bedrock && base_url_override.is_none() && cfg.base_url.is_none() {
+            format!(
+                "https://bedrock-runtime.{}.amazonaws.com",
+                aws_region.as_deref().unwrap_or("us-east-1")
+            )
+        } else {
+            base_url
+        };
+
     Ok(ResolvedRoute {
         provider_id: profile.id.to_string(),
-        base_url,
+        base_url: resolved_base,
         api_mode,
         model,
         api_key,
         omit_temperature: profile.omit_temperature,
         supports_prompt_caching: profile.supports_prompt_caching,
+        multiplex_active,
+        aws_region,
+        aws_access_key_id,
+        aws_secret_access_key,
+        aws_session_token,
+        aws_profile,
     })
 }
 

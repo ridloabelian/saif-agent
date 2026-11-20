@@ -145,6 +145,43 @@ pub struct ServerRequest {
     pub params: Value,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DashboardTab {
+    #[default]
+    Chat,
+    Terminal,
+    Kanban,
+    Cron,
+    Skills,
+    Config,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KanbanCardView {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+    pub assignee: Option<String>,
+    pub priority: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CronJobView {
+    pub id: String,
+    pub name: String,
+    pub enabled: bool,
+    pub next_run_at: Option<String>,
+    pub last_status: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SkillSummaryView {
+    pub name: String,
+    pub category: Option<String>,
+    pub description: String,
+}
+
 pub fn default_command_catalog() -> Vec<CommandCatalogItem> {
     vec![
         CommandCatalogItem {

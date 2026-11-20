@@ -7,10 +7,16 @@ license.workspace = true
 [dependencies]
 saif-config = { path = "../saif-config" }
 async-trait.workspace = true
+chrono.workspace = true
 futures-util.workspace = true
+hex.workspace = true
+rand.workspace = true
+regex.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+url.workspace = true

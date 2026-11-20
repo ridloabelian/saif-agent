@@ -1,0 +1,9 @@
+{"op": "tool_call_succeeded", "name": "json_success_true", "content": "{\"success\": true, \"output\": \"ok\"}", "expected": true}
+{"op": "tool_call_succeeded", "name": "json_success_false", "content": "{\"success\": false}", "expected": false}
+{"op": "tool_call_succeeded", "name": "json_error_string", "content": "{\"error\": \"boom\"}", "expected": false}
+{"op": "tool_call_succeeded", "name": "json_error_null_nonzero_exit", "content": "{\"error\": null, \"exit_code\": 1}", "expected": true}
+{"op": "tool_call_succeeded", "name": "json_nested_content_error", "content": "{\"content\": {\"error\": \"bad\"}}", "expected": false}
+{"op": "tool_call_succeeded", "name": "plain_ok", "content": "completed cleanly", "expected": true}
+{"op": "tool_call_succeeded", "name": "plain_error_prefix", "content": "Error: failed to read", "expected": false}
+{"op": "tool_call_succeeded", "name": "plain_error_whitespace", "content": "  error: permission denied", "expected": false}
+{"op": "tool_call_succeeded", "name": "empty_str", "content": "", "expected": false}

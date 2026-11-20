@@ -1,4 +1,6 @@
-use axum::extract::State;
+use crate::multiplex::GatewayMultiplexer;
+use crate::platforms::builtin_platform_specs;
+use axum::extract::{Path as AxumPath, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -14,6 +16,7 @@ use uuid::Uuid;
 pub struct GatewayHttpState {
     pub agent: AgentRunner,
     pub cwd: PathBuf,
+    pub multiplexer: Option<Arc<GatewayMultiplexer>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -39,12 +42,18 @@ pub fn build_gateway_router(state: GatewayHttpState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/v1/chat/completions", post(openai_chat_completions))
+        .route("/v1/platforms", get(list_platforms))
         .route("/webhook", post(webhook_ingress))
+        .route("/webhooks/{platform}", post(platform_webhook_ingress))
         .with_state(Arc::new(state))
 }
 
 async fn health() -> Json<Value> {
     Json(json!({ "status": "ok", "service": "saif-gateway" }))
+}
+
+async fn list_platforms() -> Json<Value> {
+    Json(json!({ "platforms": builtin_platform_specs() }))
 }
 
 async fn openai_chat_completions(
@@ -120,4 +129,41 @@ async fn webhook_ingress(
         session_id: outcome.session_id,
         response: outcome.final_response,
     }))
+}
+
+async fn platform_webhook_ingress(
+    State(state): State<Arc<GatewayHttpState>>,
+    AxumPath(platform): AxumPath<String>,
+    Json(payload): Json<Value>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    if let Some(mux) = &state.multiplexer {
+        let out = mux
+            .handle_inbound_event(&platform, &payload, &state.cwd)
+            .await
+            .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+        return serde_json::to_value(&out)
+            .map(Json)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
+    }
+
+    let ev = crate::platforms::parse_inbound_webhook(&platform, &payload)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "empty webhook event".to_string()))?;
+    let opts = TurnOptions {
+        source: ev.platform.clone(),
+        cwd: state.cwd.clone(),
+        ..TurnOptions::default()
+    };
+    let outcome = state
+        .agent
+        .run_conversation(&ev.text, None, opts, None, CancellationToken::new(), None)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(json!({
+        "accepted": true,
+        "platform": ev.platform,
+        "session_id": outcome.session_id,
+        "chunks": [outcome.final_response]
+    })))
 }

@@ -116,6 +116,10 @@ impl SecretScope {
         self.values.keys().cloned().collect()
     }
 
+    pub fn is_multiplex(&self) -> bool {
+        self.multiplex_active
+    }
+
     /// Build a scrubbed environment for terminal/tool/MCP/delegation children
     /// (`served_profile_child_env` / `build_subprocess_env` parity).
     pub fn build_child_env(

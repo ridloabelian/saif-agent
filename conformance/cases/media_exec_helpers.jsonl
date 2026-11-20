@@ -1,0 +1,18 @@
+{"op": "tts_response_format_from_path", "path": "out/audio.ogg", "expected": "opus"}
+{"op": "tts_response_format_from_path", "path": "out/audio.wav", "expected": "wav"}
+{"op": "tts_response_format_from_path", "path": "out/audio.flac", "expected": "flac"}
+{"op": "tts_response_format_from_path", "path": "out/audio.mp3", "expected": "mp3"}
+{"op": "tts_response_format_from_path", "path": "out/audio.bin", "expected": "mp3"}
+{"op": "config_bool", "raw": "1", "default": false, "expected": true}
+{"op": "config_bool", "raw": "true", "default": false, "expected": true}
+{"op": "config_bool", "raw": "YES", "default": false, "expected": true}
+{"op": "config_bool", "raw": "on", "default": false, "expected": true}
+{"op": "config_bool", "raw": "enabled", "default": false, "expected": true}
+{"op": "config_bool", "raw": "0", "default": true, "expected": false}
+{"op": "config_bool", "raw": "false", "default": true, "expected": false}
+{"op": "config_bool", "raw": "off", "default": true, "expected": false}
+{"op": "config_bool", "raw": "disabled", "default": true, "expected": false}
+{"op": "config_bool", "raw": "random_unrecognized", "default": true, "expected": true}
+{"op": "config_bool", "raw": "random_unrecognized", "default": false, "expected": false}
+{"op": "truncate_stdout_text", "name": "under_cap", "input_bytes": 120, "max_stdout_bytes": 50000, "expected_truncated": false, "expected_bytes_captured": 120, "expected_bytes_total": 120, "expected_bytes_omitted": 0, "has_truncation_marker": false}
+{"op": "truncate_stdout_text", "name": "over_cap_70k", "input_bytes": 70000, "max_stdout_bytes": 50000, "expected_truncated": true, "expected_bytes_captured": 50000, "expected_bytes_total": 70000, "expected_bytes_omitted": 20000, "has_truncation_marker": true}

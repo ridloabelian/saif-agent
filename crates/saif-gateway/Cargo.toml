@@ -9,9 +9,11 @@ saif-config = { path = "../saif-config" }
 saif-core = { path = "../saif-core" }
 saif-persistence = { path = "../saif-persistence" }
 axum.workspace = true
+hex.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true

@@ -1,5 +1,5 @@
 use crate::catalog::{get_provider_profile, resolve_provider_route, ResolvedRoute};
-use crate::transport::{dispatch_completion, AnthropicMessagesTransport, OpenAiChatTransport};
+use crate::transport::{dispatch_completion, TransportRouter};
 use crate::types::{ChatMessage, LlmRequest, LlmResponse, ProviderError};
 use saif_config::{AuxiliaryTaskConfig, SaifConfig, SecretScope};
 
@@ -16,8 +16,7 @@ pub enum AuxiliaryTask {
 /// independently of the main turn loop without emitting main `pre/post_api_request` hooks.
 #[derive(Clone)]
 pub struct AuxiliaryClient {
-    openai: OpenAiChatTransport,
-    anthropic: AnthropicMessagesTransport,
+    router: TransportRouter,
 }
 
 impl Default for AuxiliaryClient {
@@ -29,8 +28,7 @@ impl Default for AuxiliaryClient {
 impl AuxiliaryClient {
     pub fn new() -> Self {
         Self {
-            openai: OpenAiChatTransport::new(),
-            anthropic: AnthropicMessagesTransport::new(),
+            router: TransportRouter::new(),
         }
     }
 
@@ -88,7 +86,8 @@ impl AuxiliaryClient {
             max_tokens,
             reasoning_effort: None,
             stream: false,
+            session_id: None,
         };
-        dispatch_completion(&self.openai, &self.anthropic, &route, &req, None).await
+        dispatch_completion(&self.router, &route, &req, None).await
     }
 }

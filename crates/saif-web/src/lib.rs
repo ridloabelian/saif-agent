@@ -6,13 +6,15 @@ use axum::routing::get;
 use axum::{Json, Router};
 use futures_util::{SinkExt, StreamExt};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
-use saif_config::{ProfileScope, SaifConfig};
+use saif_config::{atomic_yaml_write, load_config, ProfileScope, SaifConfig};
 use saif_core::{AgentEvent, AgentRunner, TurnOptions};
-use saif_persistence::{PersistenceStore, SqliteStore};
+use saif_cron::CronStore;
+use saif_persistence::{KanbanStore, PersistenceStore, SqliteStore};
 use saif_rpc_contract::{
-    default_command_catalog, GatewayEvent, PromptSubmitParams, RpcRequest, RpcResponse,
-    StatusSnapshot,
+    default_command_catalog, CronJobView, GatewayEvent, KanbanCardView, PromptSubmitParams,
+    RpcRequest, RpcResponse, SkillSummaryView, StatusSnapshot,
 };
+use saif_skills::SkillStore;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::io::{Read, Write};
@@ -48,18 +50,108 @@ const DASHBOARD_HTML: &str = r#"<!doctype html>
   <meta charset="utf-8" />
   <title>Saif Agent Dashboard</title>
   <style>
-    body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #0d1117; color: #e6edf3; margin: 0; padding: 24px; }
-    .card { border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: #161b22; }
-    h1 { color: #58a6ff; margin-top: 0; }
-    code { color: #f0883e; }
+    :root { --bg:#0d1117; --card:#161b22; --border:#30363d; --fg:#e6edf3; --accent:#58a6ff; --warn:#f0883e; }
+    * { box-sizing: border-box; }
+    body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg); color: var(--fg); margin: 0; padding: 16px; }
+    header { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:16px; }
+    nav { display:flex; gap:8px; flex-wrap:wrap; }
+    button { background: var(--card); color: var(--fg); border:1px solid var(--border); padding:6px 12px; border-radius:6px; cursor:pointer; font:inherit; }
+    button.active { border-color: var(--accent); color: var(--accent); }
+    .panel { display:none; border:1px solid var(--border); border-radius:8px; padding:16px; background:var(--card); }
+    .panel.active { display:block; }
+    pre { background:#090c10; border:1px solid var(--border); padding:12px; border-radius:6px; overflow:auto; max-height:360px; }
+    input, textarea { width:100%; background:#090c10; color:var(--fg); border:1px solid var(--border); border-radius:6px; padding:8px; font:inherit; margin:6px 0; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+    .card { border:1px solid var(--border); padding:10px; border-radius:6px; background:#0d1117; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Saif Agent — 100% Pure Rust Dashboard</h1>
-    <p>Backend REST (<code>/api/status</code>, <code>/api/sessions</code>), JSON-RPC WebSocket (<code>/ws</code>), and POSIX PTY bridge (<code>/api/pty</code>) are active.</p>
-    <p>Frontend WASM bundle: <code>apps/saif-web-ui</code> (<code>wasm32-unknown-unknown</code>).</p>
-  </div>
+  <header>
+    <div><strong>Saif Agent</strong> <span style="color:var(--warn)">Pure-Rust WASM Control Plane</span></div>
+    <nav>
+      <button class="active" onclick="showTab('chat',this)">Chat</button>
+      <button onclick="showTab('terminal',this)">Terminal (PTY)</button>
+      <button onclick="showTab('kanban',this)">Kanban</button>
+      <button onclick="showTab('cron',this)">Cron</button>
+      <button onclick="showTab('skills',this)">Skills</button>
+      <button onclick="showTab('config',this)">Config</button>
+    </nav>
+  </header>
+  <section id="tab-chat" class="panel active">
+    <pre id="chat-log">Connecting to /ws...</pre>
+    <input id="chat-input" placeholder="Send prompt to Saif (/skill, /steer)..." />
+    <button onclick="sendChat()">Send Prompt</button>
+  </section>
+  <section id="tab-terminal" class="panel">
+    <pre id="pty-screen"></pre>
+    <input id="pty-cmd" placeholder="Type shell input + Enter..." onkeydown="if(event.key==='Enter')sendPty()" />
+    <button onclick="connectPty()">Reconnect PTY (80x24 RESIZE)</button>
+  </section>
+  <section id="tab-kanban" class="panel">
+    <div style="display:flex;gap:8px;"><input id="kb-title" placeholder="New task title..." /><button onclick="createKanban()">Create Task</button></div>
+    <div id="kb-list" class="grid"></div>
+  </section>
+  <section id="tab-cron" class="panel"><pre id="cron-list"></pre></section>
+  <section id="tab-skills" class="panel"><pre id="skills-list"></pre></section>
+  <section id="tab-config" class="panel">
+    <input id="cfg-model" placeholder="Model override" />
+    <input id="cfg-skin" placeholder="Skin (default, ares, mono, slate)" />
+    <button onclick="saveConfig()">Save Config</button>
+    <pre id="cfg-json"></pre>
+  </section>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const tok = q.get('token') || '';
+    const hdr = () => tok ? { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+    function showTab(name, btn) {
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      if (btn) btn.classList.add('active');
+      if (name === 'kanban') loadKanban();
+      if (name === 'cron') loadCron();
+      if (name === 'skills') loadSkills();
+      if (name === 'config') loadConfig();
+    }
+    let ws, pty;
+    function connectWs() {
+      const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+      ws = new WebSocket(proto + location.host + '/ws?token=' + encodeURIComponent(tok));
+      ws.onmessage = e => { document.getElementById('chat-log').textContent += '\n' + e.data; };
+    }
+    function sendChat() {
+      const el = document.getElementById('chat-input');
+      if (ws && el.value) ws.send(JSON.stringify({ jsonrpc:'2.0', id: Date.now(), method:'prompt.submit', params:{ session_id:'web-main', prompt:el.value, steer:false } }));
+      el.value = '';
+    }
+    function connectPty() {
+      const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+      pty = new WebSocket(proto + location.host + '/api/pty?token=' + encodeURIComponent(tok));
+      pty.onopen = () => pty.send('\x1b[RESIZE:100;30]');
+      pty.onmessage = async e => { const t = e.data instanceof Blob ? await e.data.text() : e.data; document.getElementById('pty-screen').textContent += t; };
+    }
+    function sendPty() { const el = document.getElementById('pty-cmd'); if (pty) pty.send(el.value + '\n'); el.value = ''; }
+    async function loadKanban() {
+      const r = await fetch('/api/kanban?token=' + encodeURIComponent(tok), { headers: hdr() }).then(r => r.json());
+      document.getElementById('kb-list').innerHTML = (r.tasks||[]).map(t => `<div class="card"><b>${t.title}</b><div>${t.status}</div></div>`).join('');
+    }
+    async function createKanban() {
+      const title = document.getElementById('kb-title').value;
+      if (!title) return;
+      await fetch('/api/kanban?token=' + encodeURIComponent(tok), { method:'POST', headers: hdr(), body: JSON.stringify({ action:'create', title }) });
+      document.getElementById('kb-title').value = '';
+      loadKanban();
+    }
+    async function loadCron() { document.getElementById('cron-list').textContent = JSON.stringify(await fetch('/api/cron?token=' + encodeURIComponent(tok), { headers: hdr() }).then(r => r.json()), null, 2); }
+    async function loadSkills() { document.getElementById('skills-list').textContent = JSON.stringify(await fetch('/api/skills?token=' + encodeURIComponent(tok), { headers: hdr() }).then(r => r.json()), null, 2); }
+    async function loadConfig() { document.getElementById('cfg-json').textContent = JSON.stringify(await fetch('/api/config?token=' + encodeURIComponent(tok), { headers: hdr() }).then(r => r.json()), null, 2); }
+    async function saveConfig() {
+      const body = { model: document.getElementById('cfg-model').value || undefined, skin: document.getElementById('cfg-skin').value || undefined };
+      await fetch('/api/config?token=' + encodeURIComponent(tok), { method:'PUT', headers: hdr(), body: JSON.stringify(body) });
+      loadConfig();
+    }
+    connectWs();
+  </script>
 </body>
 </html>"#;
 
@@ -84,7 +176,16 @@ pub fn build_web_router(state: WebState) -> Router {
         .route("/health", get(health_handler))
         .route("/api/status", get(status_handler))
         .route("/api/sessions", get(sessions_handler))
-        .route("/api/config", get(config_handler))
+        .route(
+            "/api/config",
+            get(config_handler).put(update_config_handler),
+        )
+        .route(
+            "/api/kanban",
+            get(kanban_list_handler).post(kanban_action_handler),
+        )
+        .route("/api/cron", get(cron_list_handler))
+        .route("/api/skills", get(skills_list_handler))
         .route("/ws", get(rpc_ws_handler))
         .route("/api/pty", get(pty_ws_handler))
         .with_state(shared)
@@ -158,9 +259,162 @@ async fn config_handler(
     if !check_auth(&headers, &q, &state.session_token) {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    Ok(Json(
-        serde_json::to_value(state.config.as_ref()).unwrap_or(Value::Null),
-    ))
+    let live_cfg = load_config(&state.profile.home_dir).unwrap_or_else(|_| (*state.config).clone());
+    Ok(Json(serde_json::to_value(live_cfg).unwrap_or(Value::Null)))
+}
+
+#[derive(Debug, Deserialize)]
+struct ConfigPatchRequest {
+    model: Option<String>,
+    provider: Option<String>,
+    skin: Option<String>,
+    language: Option<String>,
+    terminal_backend: Option<String>,
+}
+
+async fn update_config_handler(
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+    Query(q): Query<TokenQuery>,
+    Json(patch): Json<ConfigPatchRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    if !check_auth(&headers, &q, &state.session_token) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let mut cfg = load_config(&state.profile.home_dir).unwrap_or_else(|_| (*state.config).clone());
+    if let Some(m) = patch.model.filter(|s| !s.trim().is_empty()) {
+        cfg.model = m;
+    }
+    if let Some(p) = patch.provider.filter(|s| !s.trim().is_empty()) {
+        cfg.provider = p;
+    }
+    if let Some(s) = patch.skin.filter(|s| !s.trim().is_empty()) {
+        cfg.display.skin = s;
+    }
+    if let Some(l) = patch.language.filter(|s| !s.trim().is_empty()) {
+        cfg.display.language = l;
+    }
+    if let Some(b) = patch.terminal_backend.filter(|s| !s.trim().is_empty()) {
+        cfg.terminal.backend = b;
+    }
+    atomic_yaml_write(&state.profile.config_path(), &cfg)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "updated": true, "config": cfg })))
+}
+
+async fn kanban_list_handler(
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+    Query(q): Query<TokenQuery>,
+) -> Result<Json<Value>, StatusCode> {
+    if !check_auth(&headers, &q, &state.session_token) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let kb = KanbanStore::open(&state.profile.kanban_db_path())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let tasks = kb
+        .list_tasks(None)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let cards: Vec<KanbanCardView> = tasks
+        .into_iter()
+        .map(|t| KanbanCardView {
+            id: t.id,
+            title: t.title,
+            status: format!("{:?}", t.status).to_ascii_lowercase(),
+            assignee: t.assignee,
+            priority: t.priority,
+        })
+        .collect();
+    Ok(Json(json!({ "tasks": cards })))
+}
+
+#[derive(Debug, Deserialize)]
+struct KanbanPostRequest {
+    action: String,
+    title: Option<String>,
+    body: Option<String>,
+    assignee: Option<String>,
+    task_id: Option<String>,
+    summary: Option<String>,
+}
+
+async fn kanban_action_handler(
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+    Query(q): Query<TokenQuery>,
+    Json(req): Json<KanbanPostRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    if !check_auth(&headers, &q, &state.session_token) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let kb = KanbanStore::open(&state.profile.kanban_db_path())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    match req.action.as_str() {
+        "create" => {
+            let title = req.title.as_deref().ok_or(StatusCode::BAD_REQUEST)?;
+            let task = kb
+                .create_task(title, req.body.as_deref(), req.assignee.as_deref(), 0, &[])
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            Ok(Json(json!({ "success": true, "task": task })))
+        }
+        "complete" => {
+            let tid = req.task_id.as_deref().ok_or(StatusCode::BAD_REQUEST)?;
+            kb.complete_task(tid, req.summary.as_deref().unwrap_or("done"))
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            Ok(Json(json!({ "success": true, "task_id": tid })))
+        }
+        "unblock" => {
+            let tid = req.task_id.as_deref().ok_or(StatusCode::BAD_REQUEST)?;
+            kb.unblock_task(tid)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            Ok(Json(json!({ "success": true, "task_id": tid })))
+        }
+        _ => Err(StatusCode::BAD_REQUEST),
+    }
+}
+
+async fn cron_list_handler(
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+    Query(q): Query<TokenQuery>,
+) -> Result<Json<Value>, StatusCode> {
+    if !check_auth(&headers, &q, &state.session_token) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let store = CronStore::new(state.profile.cron_dir());
+    let jobs = store.load_jobs().unwrap_or_default();
+    let views: Vec<CronJobView> = jobs
+        .into_iter()
+        .map(|j| CronJobView {
+            id: j.id,
+            name: j.name,
+            enabled: j.enabled,
+            next_run_at: j.next_run_at,
+            last_status: j.last_status,
+        })
+        .collect();
+    Ok(Json(json!({ "jobs": views })))
+}
+
+async fn skills_list_handler(
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+    Query(q): Query<TokenQuery>,
+) -> Result<Json<Value>, StatusCode> {
+    if !check_auth(&headers, &q, &state.session_token) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let store = SkillStore::new(state.profile.skills_dir(), &state.config.skills.disabled);
+    let views: Vec<SkillSummaryView> = store
+        .list_skills()
+        .into_iter()
+        .map(|s| SkillSummaryView {
+            name: s.name,
+            category: s.category,
+            description: s.prompt_description,
+        })
+        .collect();
+    Ok(Json(json!({ "skills": views })))
 }
 
 async fn rpc_ws_handler(
