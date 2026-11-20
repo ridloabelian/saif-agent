@@ -1800,6 +1800,7 @@ dependencies = [
 name = "saif-config"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "dotenvy",
  "regex",
  "serde",

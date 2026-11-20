@@ -7,7 +7,9 @@ pub mod streaming;
 pub mod telegram;
 
 pub use api_server::{build_gateway_router, GatewayHttpState};
-pub use guards::{BusyDecision, BusyMessageGuard, ControlCommand};
+pub use guards::{
+    extract_steer_text, ActiveTurnHandle, BusyDecision, BusyMessageGuard, ControlCommand,
+};
 pub use identity::{resolve_identity, RoutingIdentity};
 pub use multiplex::{
     converge_multiplex_migration, render_service_unit, GatewayMultiplexer, MigrationManifest,

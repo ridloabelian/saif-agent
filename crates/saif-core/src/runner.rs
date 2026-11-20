@@ -3,19 +3,22 @@ use crate::prompt::{
     head_tail_truncate, scan_context_content, PromptBuilder, MAX_SUBDIR_HINT_CHARS,
 };
 use futures_util::future::BoxFuture;
-use saif_config::{ProfileScope, SaifConfig};
-use saif_persistence::{PersistenceStore, SqliteStore, ToolCallRecord, UsageTotals};
+use saif_config::{redact_sensitive_text, ProfileScope, SaifConfig};
+use saif_persistence::{
+    KanbanStore, MessageRecord, PersistenceStore, SqliteStore, ToolCallRecord, UsageTotals,
+};
 use saif_plugins::{HookEvent, HookPayload, HookRegistry};
 use saif_providers::{
-    dispatch_completion, resolve_provider_route, ChatMessage, LlmRequest, LlmTransport,
-    MessageRole, ProviderError, StreamChunk, ToolCall, ToolDefinition, TransportRouter,
-    UsageMetrics,
+    dispatch_completion_with_failover, resolve_provider_route_for_home, ChatMessage, LlmRequest,
+    LlmTransport, MessageRole, ProviderError, StreamChunk, ToolCall, ToolDefinition,
+    TransportRouter, UsageMetrics,
 };
 use saif_skills::SkillStore;
 use saif_tools::{ToolContext, ToolRegistry};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::{mpsc, Semaphore};
 use tokio_util::sync::CancellationToken;
@@ -138,6 +141,50 @@ pub fn validate_role_alternation(messages: &[ChatMessage]) -> Result<(), AgentEr
     Ok(())
 }
 
+/// Reconstructs an alternation-safe `ChatMessage` history from persisted SQLite rows.
+pub fn reconstruct_messages_from_records(
+    system_prompt: String,
+    records: Vec<MessageRecord>,
+) -> Vec<ChatMessage> {
+    let mut out = vec![ChatMessage::system(system_prompt)];
+    for rec in records {
+        let content = rec.content.unwrap_or_default();
+        match rec.role.as_str() {
+            "user" => {
+                if let Some(last) = out.last_mut().filter(|m| m.role == MessageRole::User) {
+                    if !last.content.is_empty() && !content.is_empty() {
+                        last.content.push_str("\n\n");
+                    }
+                    last.content.push_str(&content);
+                } else {
+                    out.push(ChatMessage::user(content));
+                }
+            }
+            "assistant" => {
+                let tool_calls = rec.tool_calls.map(|list| {
+                    list.into_iter()
+                        .map(|tc| ToolCall {
+                            id: tc.id,
+                            name: tc.name,
+                            arguments: tc.arguments,
+                        })
+                        .collect()
+                });
+                out.push(ChatMessage::assistant(content, tool_calls, rec.reasoning));
+            }
+            "tool" => {
+                out.push(ChatMessage::tool(
+                    rec.tool_call_id.unwrap_or_default(),
+                    rec.tool_name.unwrap_or_default(),
+                    content,
+                ));
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
 #[derive(Clone)]
 pub struct AgentRunner {
     profile: Arc<ProfileScope>,
@@ -217,7 +264,8 @@ impl AgentRunner {
                 });
             }
 
-            let route = resolve_provider_route(
+            let route = resolve_provider_route_for_home(
+                Some(&self.profile.home_dir),
                 &self.config,
                 &self.profile.secrets,
                 opts.provider_override.as_deref(),
@@ -225,39 +273,91 @@ impl AgentRunner {
                 opts.base_url_override.as_deref(),
             )?;
 
+            let expanded_user_prompt = self.maybe_expand_skill_slash(user_message);
             let mut messages = match prior_messages {
                 Some(mut existing) if !existing.is_empty() => {
-                    existing.push(ChatMessage::user(
-                        self.maybe_expand_skill_slash(user_message),
-                    ));
+                    if let Some(last) = existing.last_mut().filter(|m| m.role == MessageRole::User)
+                    {
+                        if !last.content.is_empty() && !expanded_user_prompt.is_empty() {
+                            last.content.push_str("\n\n");
+                        }
+                        last.content.push_str(&expanded_user_prompt);
+                    } else {
+                        existing.push(ChatMessage::user(expanded_user_prompt.clone()));
+                    }
                     existing
                 }
                 _ => {
-                    let sys = PromptBuilder::build_system_prompt(
-                        &self.profile,
-                        &self.config,
-                        &opts.cwd,
-                        opts.extra_system_prompt.as_deref(),
-                    )
-                    .await;
-                    if !opts.skip_persistence {
+                    let existing_sess = if !opts.skip_persistence {
                         if let Some(store) = &self.store {
-                            let _ = store
-                                .create_session(
-                                    &session_id,
-                                    &opts.source,
-                                    Some(&route.model),
-                                    Some(&sys),
-                                    Some(&opts.cwd.to_string_lossy()),
-                                    Some(&self.profile.profile_name),
-                                )
-                                .await;
+                            store.get_session(&session_id).await.ok().flatten()
+                        } else {
+                            None
                         }
+                    } else {
+                        None
+                    };
+
+                    if let Some(sess) = existing_sess {
+                        let sys = match sess.system_prompt {
+                            Some(s) if !s.is_empty() => s,
+                            _ => {
+                                PromptBuilder::build_system_prompt(
+                                    &self.profile,
+                                    &self.config,
+                                    &opts.cwd,
+                                    opts.extra_system_prompt.as_deref(),
+                                )
+                                .await
+                            }
+                        };
+                        let records = if let Some(store) = &self.store {
+                            store
+                                .load_active_messages(&session_id)
+                                .await
+                                .unwrap_or_default()
+                        } else {
+                            Vec::new()
+                        };
+                        let mut hydrated = reconstruct_messages_from_records(sys, records);
+                        if let Some(last) =
+                            hydrated.last_mut().filter(|m| m.role == MessageRole::User)
+                        {
+                            if !last.content.is_empty() && !expanded_user_prompt.is_empty() {
+                                last.content.push_str("\n\n");
+                            }
+                            last.content.push_str(&expanded_user_prompt);
+                        } else {
+                            hydrated.push(ChatMessage::user(expanded_user_prompt.clone()));
+                        }
+                        hydrated
+                    } else {
+                        let sys = PromptBuilder::build_system_prompt(
+                            &self.profile,
+                            &self.config,
+                            &opts.cwd,
+                            opts.extra_system_prompt.as_deref(),
+                        )
+                        .await;
+                        if !opts.skip_persistence {
+                            if let Some(store) = &self.store {
+                                let _ = store
+                                    .create_session(
+                                        &session_id,
+                                        &opts.source,
+                                        Some(&route.model),
+                                        Some(&sys),
+                                        Some(&opts.cwd.to_string_lossy()),
+                                        Some(&self.profile.profile_name),
+                                    )
+                                    .await;
+                            }
+                        }
+                        vec![
+                            ChatMessage::system(sys),
+                            ChatMessage::user(expanded_user_prompt.clone()),
+                        ]
                     }
-                    vec![
-                        ChatMessage::system(sys),
-                        ChatMessage::user(self.maybe_expand_skill_slash(user_message)),
-                    ]
                 }
             };
 
@@ -269,7 +369,7 @@ impl AgentRunner {
                         .append_message(
                             &session_id,
                             "user",
-                            messages.last().map(|m| m.content.as_str()),
+                            Some(&expanded_user_prompt),
                             None,
                             None,
                             None,
@@ -281,13 +381,16 @@ impl AgentRunner {
                 }
             }
 
+            let kanban_handle = (!opts.skip_persistence)
+                .then(|| KanbanStore::open(&self.profile.kanban_db_path()).ok())
+                .flatten();
             let tool_ctx = ToolContext {
                 session_id: session_id.clone(),
                 cwd: opts.cwd.clone(),
                 profile: Arc::clone(&self.profile),
                 config: Arc::clone(&self.config),
                 store: self.store.clone(),
-                kanban: None,
+                kanban: kanban_handle,
                 task_id: None,
                 spawn_depth: opts.spawn_depth,
                 is_delegated_child: opts.is_delegated_child,
@@ -330,6 +433,19 @@ impl AgentRunner {
                 let trigger_tokens =
                     ((128_000_f64) * self.config.compression.threshold_ratio) as usize;
                 if self.config.compression.enabled && approx_tokens > trigger_tokens {
+                    let active_ids: Vec<i64> = if !opts.skip_persistence {
+                        if let Some(store) = &self.store {
+                            store
+                                .load_active_messages(&session_id)
+                                .await
+                                .map(|rows| rows.into_iter().map(|r| r.id).collect())
+                                .unwrap_or_default()
+                        } else {
+                            Vec::new()
+                        }
+                    } else {
+                        Vec::new()
+                    };
                     let compacted = ContextCompressor::compress(
                         &messages,
                         self.config.compression.keep_tail_tokens,
@@ -337,6 +453,25 @@ impl AgentRunner {
                         Some(&self.profile.secrets),
                     )
                     .await;
+                    if compacted.summarized_messages > 0 && !opts.skip_persistence {
+                        if let Some(store) = &self.store {
+                            if active_ids.len() >= compacted.summarized_messages {
+                                let max_id = active_ids[compacted.summarized_messages - 1];
+                                let summary_body = compacted
+                                    .summary_text
+                                    .as_deref()
+                                    .or_else(|| {
+                                        compacted.messages.get(1).map(|m| m.content.as_str())
+                                    })
+                                    .unwrap_or("");
+                                let _ = store.compact_session_history(
+                                    &session_id,
+                                    max_id,
+                                    summary_body,
+                                );
+                            }
+                        }
+                    }
                     messages = compacted.messages;
                     if let Some(tx) = &event_tx {
                         let _ = tx.send(AgentEvent::Compacted {
@@ -391,10 +526,29 @@ impl AgentRunner {
                 });
 
                 let tx_opt = event_tx.as_ref().map(|_| chunk_tx);
-                let resp = if let Some(custom) = &self.custom_transport {
-                    custom.complete(&route, &req, tx_opt).await?
-                } else {
-                    dispatch_completion(&self.transports, &route, &req, tx_opt).await?
+                let max_attempts = self.config.agent.api_retries.saturating_add(1).max(1);
+                let resp = tokio::select! {
+                    biased;
+                    _ = cancel.cancelled() => {
+                        if let Some(h) = forward_handle {
+                            h.abort();
+                        }
+                        return Err(AgentError::Interrupted);
+                    }
+                    res = async {
+                        if let Some(custom) = &self.custom_transport {
+                            custom.complete(&route, &req, tx_opt).await
+                        } else {
+                            dispatch_completion_with_failover(
+                                &self.transports,
+                                &route,
+                                &req,
+                                max_attempts,
+                                tx_opt,
+                            )
+                            .await
+                        }
+                    } => res?,
                 };
                 if let Some(h) = forward_handle {
                     let _ = h.await;
@@ -476,9 +630,11 @@ impl AgentRunner {
                 }
 
                 for tc in resp.tool_calls {
-                    let out = self
-                        .execute_tool_call(&tc, &tool_ctx, &opts, event_tx.as_ref())
-                        .await;
+                    let out = tokio::select! {
+                        biased;
+                        _ = cancel.cancelled() => return Err(AgentError::Interrupted),
+                        res = self.execute_tool_call(&tc, &tool_ctx, &opts, event_tx.as_ref()) => res,
+                    };
                     messages.push(ChatMessage::tool(
                         tc.id.clone(),
                         tc.name.clone(),
@@ -626,7 +782,8 @@ impl AgentRunner {
             .await;
 
         if let Some(tx) = event_tx {
-            let preview: String = output.chars().take(160).collect();
+            let redacted = redact_sensitive_text(&output);
+            let preview: String = redacted.chars().take(160).collect();
             let _ = tx.send(AgentEvent::ToolComplete {
                 name: tc.name.clone(),
                 output_preview: preview,
@@ -651,6 +808,10 @@ impl AgentRunner {
             .get("goal")
             .and_then(|v| v.as_str())
             .ok_or_else(|| saif_tools::ToolError::InvalidArgs("missing 'goal'".to_string()))?;
+        let combined_goal = match args.get("context").and_then(|v| v.as_str()) {
+            Some(c) if !c.trim().is_empty() => format!("{goal}\n\nContext:\n{c}"),
+            _ => goal.to_string(),
+        };
 
         let _permit = self
             .delegation_semaphore
@@ -672,13 +833,29 @@ impl AgentRunner {
             cwd: parent_opts.cwd.clone(),
         };
 
-        let outcome = self
-            .run_conversation(goal, None, child_opts, None, CancellationToken::new(), None)
-            .await
-            .map_err(|e| saif_tools::ToolError::Execution(e.to_string()))?;
+        let timeout_secs = self.config.delegation.child_timeout_seconds.max(1);
+        let outcome = tokio::time::timeout(
+            Duration::from_secs(timeout_secs),
+            self.run_conversation(
+                &combined_goal,
+                None,
+                child_opts,
+                None,
+                CancellationToken::new(),
+                None,
+            ),
+        )
+        .await
+        .map_err(|_| {
+            saif_tools::ToolError::Execution(format!(
+                "delegated child timed out after {timeout_secs}s"
+            ))
+        })?
+        .map_err(|e| saif_tools::ToolError::Execution(e.to_string()))?;
 
         Ok(json!({
             "success": true,
+            "status": "completed",
             "child_session_id": outcome.session_id,
             "summary": outcome.final_response,
             "api_calls": outcome.api_calls

@@ -4,6 +4,6 @@ pub mod host;
 pub mod manifest;
 
 pub use catalog::{canonical_repo_slug, validate_catalog_entry, CatalogEntry, RemovedCatalog};
-pub use hooks::{HookEvent, HookPayload, HookRegistry, HookSubscriber};
+pub use hooks::{HookEvent, HookPayload, HookRegistry, HookSubscriber, PluginHookBridge};
 pub use host::{PluginHostClient, RemotePluginRpc};
-pub use manifest::{PluginError, PluginKind, PluginManager, PluginManifest};
+pub use manifest::{DiscoveredPlugin, PluginError, PluginKind, PluginManager, PluginManifest};

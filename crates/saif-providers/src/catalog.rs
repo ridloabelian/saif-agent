@@ -1,6 +1,9 @@
+use crate::credential_pool::{read_auth_json_secret, CredentialPool};
 use crate::types::ProviderError;
 use saif_config::{SaifConfig, SecretScope};
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -43,6 +46,8 @@ pub struct ResolvedRoute {
     pub omit_temperature: bool,
     pub supports_prompt_caching: bool,
     pub multiplex_active: bool,
+    pub pooled_credential_id: Option<String>,
+    pub saif_home: Option<PathBuf>,
     pub aws_region: Option<String>,
     pub aws_access_key_id: Option<String>,
     pub aws_secret_access_key: Option<String>,
@@ -329,6 +334,150 @@ pub fn builtin_providers() -> Vec<ProviderProfile> {
             supports_prompt_caching: true,
         },
         ProviderProfile {
+            id: "zai",
+            display_name: "Z.AI / Zhipu GLM",
+            base_url: "https://api.z.ai/api/paas/v4",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "ZAI_API_KEY",
+            default_model: "glm-4.5",
+            default_aux_model: "glm-4.5-air",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "qwen-portal",
+            display_name: "Qwen Portal OAuth",
+            base_url: "https://portal.qwen.ai/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::OAuth,
+            env_var: "QWEN_OAUTH_TOKEN",
+            default_model: "qwen3-coder-plus",
+            default_aux_model: "qwen-turbo",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "cerebras",
+            display_name: "Cerebras",
+            base_url: "https://api.cerebras.ai/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "CEREBRAS_API_KEY",
+            default_model: "llama-3.3-70b",
+            default_aux_model: "llama3.1-8b",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "sambanova",
+            display_name: "SambaNova Cloud",
+            base_url: "https://api.sambanova.ai/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "SAMBANOVA_API_KEY",
+            default_model: "Meta-Llama-3.3-70B-Instruct",
+            default_aux_model: "Meta-Llama-3.1-8B-Instruct",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "chutes",
+            display_name: "Chutes AI",
+            base_url: "https://llm.chutes.ai/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "CHUTES_API_KEY",
+            default_model: "deepseek-ai/DeepSeek-V3-0324",
+            default_aux_model: "Qwen/Qwen2.5-7B-Instruct",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "hyperbolic",
+            display_name: "Hyperbolic",
+            base_url: "https://api.hyperbolic.xyz/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "HYPERBOLIC_API_KEY",
+            default_model: "deepseek-ai/DeepSeek-V3",
+            default_aux_model: "meta-llama/Llama-3.2-3B-Instruct",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "featherless",
+            display_name: "Featherless AI",
+            base_url: "https://api.featherless.ai/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "FEATHERLESS_API_KEY",
+            default_model: "meta-llama/Meta-Llama-3.1-70B-Instruct",
+            default_aux_model: "meta-llama/Meta-Llama-3.1-8B-Instruct",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "novita",
+            display_name: "Novita AI",
+            base_url: "https://api.novita.ai/v3/openai",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "NOVITA_API_KEY",
+            default_model: "deepseek/deepseek-v3-0324",
+            default_aux_model: "meta-llama/llama-3.1-8b-instruct",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "perplexity",
+            display_name: "Perplexity Sonar",
+            base_url: "https://api.perplexity.ai",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "PERPLEXITY_API_KEY",
+            default_model: "sonar-pro",
+            default_aux_model: "sonar",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "cohere",
+            display_name: "Cohere Command",
+            base_url: "https://api.cohere.ai/compatibility/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "COHERE_API_KEY",
+            default_model: "command-a-03-2025",
+            default_aux_model: "command-r7b-12-2024",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "huggingface",
+            display_name: "Hugging Face Router",
+            base_url: "https://router.huggingface.co/v1",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::ApiKey,
+            env_var: "HF_TOKEN",
+            default_model: "Qwen/Qwen2.5-Coder-32B-Instruct",
+            default_aux_model: "Qwen/Qwen2.5-7B-Instruct",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
+            id: "github-copilot",
+            display_name: "GitHub Models / Copilot",
+            base_url: "https://models.inference.ai.azure.com",
+            api_mode: ApiMode::ChatCompletions,
+            auth_type: AuthType::OAuth,
+            env_var: "GITHUB_TOKEN",
+            default_model: "gpt-4.1",
+            default_aux_model: "gpt-4.1-mini",
+            omit_temperature: false,
+            supports_prompt_caching: false,
+        },
+        ProviderProfile {
             id: "custom",
             display_name: "Custom OpenAI-Compatible",
             base_url: "http://127.0.0.1:8000/v1",
@@ -349,6 +498,24 @@ pub fn get_provider_profile(id: &str) -> Option<ProviderProfile> {
 }
 
 pub fn resolve_provider_route(
+    cfg: &SaifConfig,
+    secrets: &SecretScope,
+    provider_override: Option<&str>,
+    model_override: Option<&str>,
+    base_url_override: Option<&str>,
+) -> Result<ResolvedRoute, ProviderError> {
+    resolve_provider_route_for_home(
+        None,
+        cfg,
+        secrets,
+        provider_override,
+        model_override,
+        base_url_override,
+    )
+}
+
+pub fn resolve_provider_route_for_home(
+    saif_home: Option<&Path>,
     cfg: &SaifConfig,
     secrets: &SecretScope,
     provider_override: Option<&str>,
@@ -385,7 +552,30 @@ pub fn resolve_provider_route(
         _ => profile.api_mode,
     };
 
-    let api_key = secrets.get_secret(profile.env_var);
+    let now_epoch = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let mut pooled_credential_id = None;
+    let mut api_key = None;
+    if let Some(home) = saif_home {
+        let mut pool = CredentialPool::open(home);
+        if let Some(cred) = pool.select(profile.id, now_epoch) {
+            pooled_credential_id = Some(cred.id);
+            api_key = Some(cred.secret);
+            let _ = pool.save();
+        }
+    }
+    if api_key.is_none() {
+        api_key = secrets.get_secret(profile.env_var);
+    }
+    if api_key.is_none() {
+        if let Some(home) = saif_home {
+            api_key = read_auth_json_secret(home, profile.id);
+        }
+    }
+
     if profile.auth_type == AuthType::ApiKey
         && api_key.is_none()
         && !base_url.starts_with("http://127.0.0.1")
@@ -426,6 +616,8 @@ pub fn resolve_provider_route(
         omit_temperature: profile.omit_temperature,
         supports_prompt_caching: profile.supports_prompt_caching,
         multiplex_active,
+        pooled_credential_id,
+        saif_home: saif_home.map(Path::to_path_buf),
         aws_region,
         aws_access_key_id,
         aws_secret_access_key,
@@ -443,6 +635,16 @@ fn auto_detect_provider(secrets: &SecretScope) -> &'static str {
         ("deepseek", "DEEPSEEK_API_KEY"),
         ("groq", "GROQ_API_KEY"),
         ("xai", "XAI_API_KEY"),
+        ("zai", "ZAI_API_KEY"),
+        ("cerebras", "CEREBRAS_API_KEY"),
+        ("sambanova", "SAMBANOVA_API_KEY"),
+        ("chutes", "CHUTES_API_KEY"),
+        ("hyperbolic", "HYPERBOLIC_API_KEY"),
+        ("featherless", "FEATHERLESS_API_KEY"),
+        ("novita", "NOVITA_API_KEY"),
+        ("perplexity", "PERPLEXITY_API_KEY"),
+        ("cohere", "COHERE_API_KEY"),
+        ("huggingface", "HF_TOKEN"),
     ] {
         if secrets.get_secret(candidate.1).is_some() {
             return candidate.0;

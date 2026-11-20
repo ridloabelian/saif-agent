@@ -7,6 +7,7 @@ use saif_rpc_contract::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::sync::{Mutex, OnceLock};
 
 /// Pure-Rust terminal cell grid supporting basic ANSI cursor/clear sequences
 /// and generating Hermes-compatible `\x1b[RESIZE:<cols>;<rows>]` frames.
@@ -160,7 +161,17 @@ impl DashboardUiState {
             GatewayEvent::MessageComplete { content, .. } => {
                 self.transcript.push(content);
             }
-            _ => {}
+            GatewayEvent::ToolStart { name, .. } => {
+                self.transcript.push(format!("[tool start: {name}]"));
+            }
+            GatewayEvent::ToolComplete { name, ok, .. } => {
+                self.transcript.push(format!(
+                    "[tool {}: {}]",
+                    name,
+                    if ok { "ok" } else { "err" }
+                ));
+            }
+            GatewayEvent::ThinkingDelta { .. } | GatewayEvent::RequestCancel { .. } => {}
         }
         Ok(())
     }
@@ -218,16 +229,141 @@ impl DashboardUiState {
     }
 }
 
+#[derive(Default)]
+pub struct WasmRuntime {
+    pub ui: DashboardUiState,
+    pub last_output: Vec<u8>,
+}
+
+impl WasmRuntime {
+    pub fn feed_pty_str(&mut self, text: &str) -> usize {
+        self.ui.terminal.feed_text(text);
+        let rendered = self.ui.terminal.render_lines().join("\n");
+        self.last_output = rendered.into_bytes();
+        self.last_output.len()
+    }
+
+    pub fn resize_terminal(&mut self, cols: u16, rows: u16) -> usize {
+        let frame = self.ui.terminal.resize(cols, rows);
+        self.last_output = frame.into_bytes();
+        self.last_output.len()
+    }
+
+    pub fn apply_event_json(&mut self, json_str: &str) -> usize {
+        if let Err(err) = self.ui.apply_event(json_str) {
+            self.last_output = err.into_bytes();
+            return 0;
+        }
+        self.last_output = self.ui.transcript.join("\n").into_bytes();
+        self.last_output.len()
+    }
+}
+
+fn runtime_cell() -> &'static Mutex<WasmRuntime> {
+    static RT: OnceLock<Mutex<WasmRuntime>> = OnceLock::new();
+    RT.get_or_init(|| Mutex::new(WasmRuntime::default()))
+}
+
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub extern "C" fn saif_wasm_alloc(len: usize) -> *mut u8 {
+    let mut buf = Vec::<u8>::with_capacity(len);
+    let ptr = buf.as_mut_ptr();
+    std::mem::forget(buf);
+    ptr
+}
+
+/// # Safety
+/// `ptr` must have been allocated by `saif_wasm_alloc` with identical `cap` and not yet freed.
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub unsafe extern "C" fn saif_wasm_dealloc(ptr: *mut u8, cap: usize) {
+    if !ptr.is_null() && cap > 0 {
+        drop(unsafe { Vec::from_raw_parts(ptr, 0, cap) });
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
 pub extern "C" fn saif_ui_init() -> u32 {
-    1
+    if let Ok(mut rt) = runtime_cell().lock() {
+        *rt = WasmRuntime::default();
+        return 1;
+    }
+    0
 }
 
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
 pub extern "C" fn saif_ui_resize_pack(cols: u16, rows: u16) -> u32 {
     (u32::from(cols) << 16) | u32::from(rows)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub extern "C" fn saif_ui_resize(cols: u16, rows: u16) -> usize {
+    let Ok(mut rt) = runtime_cell().lock() else {
+        return 0;
+    };
+    rt.resize_terminal(cols, rows)
+}
+
+/// # Safety
+/// `ptr` must point to `len` valid readable bytes in WASM linear memory.
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub unsafe extern "C" fn saif_ui_feed_pty(ptr: *const u8, len: usize) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let text = String::from_utf8_lossy(slice);
+    let Ok(mut rt) = runtime_cell().lock() else {
+        return 0;
+    };
+    rt.feed_pty_str(&text)
+}
+
+/// # Safety
+/// `ptr` must point to `len` valid readable bytes in WASM linear memory.
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub unsafe extern "C" fn saif_ui_apply_event(ptr: *const u8, len: usize) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let text = String::from_utf8_lossy(slice);
+    let Ok(mut rt) = runtime_cell().lock() else {
+        return 0;
+    };
+    rt.apply_event_json(&text)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub extern "C" fn saif_ui_output_ptr() -> *const u8 {
+    let Ok(rt) = runtime_cell().lock() else {
+        return std::ptr::null();
+    };
+    rt.last_output.as_ptr()
+}
+
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub extern "C" fn saif_ui_output_len() -> usize {
+    let Ok(rt) = runtime_cell().lock() else {
+        return 0;
+    };
+    rt.last_output.len()
+}
+
+/// Touch runtime cell on non-wasm targets so host tests/clippy keep zero dead-code warnings.
+pub fn init_host_runtime() -> usize {
+    runtime_cell()
+        .lock()
+        .map(|rt| rt.ui.terminal.cols as usize)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -243,6 +379,22 @@ mod tests {
         assert_eq!(buf.resize(120, 40), "\x1b[RESIZE:120;40]");
         buf.feed_text("\x1b[2Jfresh");
         assert_eq!(buf.render_lines()[0], "fresh");
+
+        let mut rt = WasmRuntime::default();
+        let len = rt.feed_pty_str("prompt> ls\r\nCargo.toml");
+        assert!(len > 0);
+        let out_str = String::from_utf8(rt.last_output.clone()).unwrap();
+        assert!(out_str.contains("prompt> ls"));
+        assert!(out_str.contains("Cargo.toml"));
+
+        let rlen = rt.resize_terminal(100, 30);
+        assert_eq!(&rt.last_output[..rlen], b"\x1b[RESIZE:100;30]");
+
+        let ev_len =
+            rt.apply_event_json(r#"{"type":"message_delta","session_id":"s1","delta":"hi wasm"}"#);
+        assert!(ev_len > 0);
+        assert!(String::from_utf8_lossy(&rt.last_output).contains("hi wasm"));
+        assert!(init_host_runtime() >= 80);
 
         let mut ui = DashboardUiState {
             active_tab: DashboardTab::Kanban,

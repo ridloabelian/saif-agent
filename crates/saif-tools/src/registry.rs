@@ -181,10 +181,11 @@ pub fn register_default_toolsets() -> ToolsetCatalog {
         "media",
         vec!["image_generate".into(), "video_generate".into()],
     );
+    cat.insert("mcp", Vec::new());
     cat
 }
 
-type AvailabilityCache = Arc<RwLock<HashMap<(String, String), (bool, Instant)>>>;
+type AvailabilityCache = Arc<RwLock<HashMap<(String, bool, usize, String), (bool, Instant)>>>;
 
 #[derive(Clone)]
 pub struct ToolRegistry {
@@ -233,10 +234,19 @@ impl ToolRegistry {
             .unwrap_or_default()
         };
 
+        let mcp_enabled = (ctx.config.toolsets.is_empty()
+            || ctx
+                .config
+                .toolsets
+                .iter()
+                .any(|t| t == "hermes-cli" || t == "all" || t == "mcp"))
+            && !disabled_toolsets.iter().any(|t| t == "mcp");
+
         let handlers = self.handlers.read().map(|g| g.clone()).unwrap_or_default();
         let mut defs = Vec::new();
         for (name, handler) in handlers {
-            if !allowed.contains(&name) {
+            let is_mcp_tool = name.starts_with("mcp__") && mcp_enabled;
+            if !allowed.contains(&name) && !is_mcp_tool {
                 continue;
             }
             if !self.check_available_cached(&name, handler.as_ref(), ctx) {
@@ -254,7 +264,12 @@ impl ToolRegistry {
         ctx: &ToolContext,
     ) -> bool {
         let home_key = ctx.profile.home_dir.to_string_lossy().into_owned();
-        let cache_key = (home_key, name.to_string());
+        let cache_key = (
+            home_key,
+            ctx.is_delegated_child,
+            ctx.spawn_depth,
+            name.to_string(),
+        );
         if let Ok(guard) = self.availability_cache.read() {
             if let Some((ok, expires)) = guard.get(&cache_key) {
                 if Instant::now() < *expires {

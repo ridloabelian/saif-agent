@@ -1,7 +1,8 @@
 use chrono::Utc;
 use saif_config::{
-    named_profile_has_identity, named_profile_has_servable_identity, named_profile_is_deleted,
-    named_profile_is_live,
+    clear_named_profile_deleted, mark_named_profile_deleted, named_profile_has_identity,
+    named_profile_has_servable_identity, named_profile_is_deleted, named_profile_is_live,
+    redact_sensitive_text, FileClassification, ProfileScope, UpstreamLock,
 };
 use saif_core::{scan_context_content, tool_call_succeeded};
 use saif_cron::{
@@ -509,6 +510,81 @@ fn replay_media_exec_helpers_oracle() {
                 );
             }
             other => panic!("unexpected media/exec oracle op {other}"),
+        }
+    }
+}
+
+#[test]
+fn replay_upstream_parity_guards_oracle() {
+    let cases = load_jsonl("upstream_parity_guards.jsonl");
+    assert_eq!(cases.len(), 12);
+
+    let lock_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("conformance/UPSTREAM_LOCK.json");
+    let lock = UpstreamLock::load(&lock_path).unwrap();
+
+    for case in cases {
+        let name = case["name"].as_str().unwrap();
+        match case["op"].as_str().unwrap() {
+            "redact_sensitive_text" => {
+                let got = redact_sensitive_text(case["input"].as_str().unwrap());
+                assert_eq!(got, case["expected"].as_str().unwrap(), "{name}");
+            }
+            "profile_boundary" => {
+                let tmp = TempDir::new().unwrap();
+                let root = tmp.path().to_path_buf();
+                let pname = "worker";
+                let pdir = root.join("profiles").join(pname);
+                fs::create_dir_all(root.join("profiles")).unwrap();
+                match case["scenario"].as_str().unwrap() {
+                    "file_at_home" => {
+                        fs::write(&pdir, "not a dir").unwrap();
+                    }
+                    "tombstoned" => {
+                        fs::create_dir_all(&pdir).unwrap();
+                        mark_named_profile_deleted(&pdir).unwrap();
+                    }
+                    "cleared" => {
+                        fs::create_dir_all(&pdir).unwrap();
+                        mark_named_profile_deleted(&pdir).unwrap();
+                        clear_named_profile_deleted(&pdir).unwrap();
+                    }
+                    other => panic!("unexpected boundary scenario {other}"),
+                }
+                let res = ProfileScope::for_profile(root, Some(pname), false);
+                assert_eq!(
+                    res.is_ok(),
+                    case["expect_ok"].as_bool().unwrap(),
+                    "profile boundary mismatch for {name}"
+                );
+            }
+            "upstream_classify" => {
+                let path = case["path"].as_str().unwrap();
+                let status = case["status"].as_str().unwrap();
+                let classified = lock.classify_path(path, status);
+                let (got_class, got_sub) = match classified {
+                    FileClassification::IgnoredNoise { .. } => ("ignored_noise", None),
+                    FileClassification::SkipRuntimeSpecific { .. } => {
+                        ("skip_runtime_specific", None)
+                    }
+                    FileClassification::PortRequired { subsystem_id, .. } => {
+                        ("port_required", Some(subsystem_id))
+                    }
+                    FileClassification::Unmapped { .. } => ("unmapped", None),
+                };
+                assert_eq!(
+                    got_class,
+                    case["expected_class"].as_str().unwrap(),
+                    "class mismatch for {name}"
+                );
+                assert_eq!(
+                    got_sub.as_deref(),
+                    case["expected_subsystem"].as_str(),
+                    "subsystem mismatch for {name}"
+                );
+            }
+            other => panic!("unexpected upstream guard op {other}"),
         }
     }
 }

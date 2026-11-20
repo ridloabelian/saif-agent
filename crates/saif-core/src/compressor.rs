@@ -10,6 +10,7 @@ pub struct CompressionResult {
     pub pruned_tool_outputs: usize,
     pub summarized_messages: usize,
     pub used_llm_summary: bool,
+    pub summary_text: Option<String>,
 }
 
 pub fn estimate_tokens_rough(messages: &[ChatMessage]) -> usize {
@@ -39,6 +40,7 @@ impl ContextCompressor {
                 pruned_tool_outputs: 0,
                 summarized_messages: 0,
                 used_llm_summary: false,
+                summary_text: None,
             };
         }
 
@@ -46,7 +48,7 @@ impl ContextCompressor {
         let mut pruned_tool_outputs = 0usize;
 
         // Tier 1: Prune oversized old tool outputs (never touching the last 4 messages).
-        let protect_tail = working.len().saturating_sub(4);
+        let protect_tail = working.len().saturating_sub(4).max(1);
         for msg in &mut working[1..protect_tail] {
             if msg.role == MessageRole::Tool && msg.content.len() > 600 {
                 let preview: String = msg.content.chars().take(240).collect();
@@ -79,6 +81,7 @@ impl ContextCompressor {
                 pruned_tool_outputs,
                 summarized_messages: 0,
                 used_llm_summary: false,
+                summary_text: None,
             };
         }
 
@@ -120,16 +123,29 @@ impl ContextCompressor {
             deterministic_fallback_summary(middle)
         };
 
+        let summary_text = format!("{SUMMARY_PREFIX}{summary_body}");
         let mut next = Vec::with_capacity(2 + (working.len() - split_idx));
         next.push(working[0].clone()); // Preserve byte-stable system[0]
-        next.push(ChatMessage::user(format!("{SUMMARY_PREFIX}{summary_body}")));
-        next.extend_from_slice(&working[split_idx..]);
+        if working
+            .get(split_idx)
+            .is_some_and(|m| m.role == MessageRole::User)
+        {
+            let mut coalesced = summary_text.clone();
+            coalesced.push_str("\n\n");
+            coalesced.push_str(&working[split_idx].content);
+            next.push(ChatMessage::user(coalesced));
+            next.extend_from_slice(&working[split_idx + 1..]);
+        } else {
+            next.push(ChatMessage::user(summary_text.clone()));
+            next.extend_from_slice(&working[split_idx..]);
+        }
 
         CompressionResult {
             messages: next,
             pruned_tool_outputs,
             summarized_messages,
             used_llm_summary,
+            summary_text: Some(summary_text),
         }
     }
 }

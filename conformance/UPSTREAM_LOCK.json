@@ -1,0 +1,336 @@
+{
+  "schema_version": 1,
+  "upstream_repo": "https://github.com/NousResearch/hermes-agent.git",
+  "tracked_branch": "main",
+  "synced_commit": "32dbc1dcda2255fd35969ec99cfc0170988c3eca",
+  "synced_at": "2026-11-20T07:09:53.276158154+00:00",
+  "synced_subject": "fix(web): preserve profile/state on /learn handoff, cancel on startup paste, and split chat learn tests",
+  "ignore_globs": [
+    "plugin-catalog/**",
+    "contributors/**",
+    "website/**",
+    "evals/**",
+    "tests-js/**",
+    "scripts/**",
+    "nix/**",
+    "pm/**",
+    "docker/**",
+    ".github/**",
+    "tests/**",
+    "docs/**",
+    "README*.md",
+    "CHANGELOG*.md",
+    "CONTRIBUTING*.md",
+    "SECURITY.md",
+    "Dockerfile",
+    ".dockerignore",
+    ".gitignore",
+    ".gitattributes",
+    ".npmrc",
+    ".prettierignore",
+    ".envrc",
+    ".env.example",
+    "*.png",
+    "*.jpg",
+    "*.svg",
+    "*.lock",
+    "uv.lock",
+    "pyproject.toml",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".mailmap",
+    "**/__pycache__/**",
+    "*.pyc"
+  ],
+  "runtime_specific_prefixes": [
+    "hermes_cli/hermes_bootstrap",
+    "hermes_cli/_old_updater",
+    "hermes_cli/old_updater",
+    "hermes_cli/npm_engine",
+    "hermes_cli/lazy_deps",
+    "tools/lazy_deps.py",
+    "tools/interpreter_shutdown.py",
+    "setup.py",
+    "MANIFEST.in",
+    "package.json",
+    "ui-tui/package",
+    "web/package",
+    "apps/desktop/package",
+    "apps/desktop/electron"
+  ],
+  "subsystems": [
+    {
+      "id": "profile_secrets",
+      "description": "Profile home boundary guards, SecretScope isolation, and structured secret redaction",
+      "hermes_prefixes": [
+        "hermes_constants.py",
+        "agent/secret_scope.py",
+        "agent/secret_sources/",
+        "agent/redact_"
+      ],
+      "rust_targets": [
+        "crates/saif-config/src/profile.rs",
+        "crates/saif-config/src/secrets.rs",
+        "crates/saif-config/src/redact.rs"
+      ],
+      "conformance_suites": [
+        "conformance/cases/profile_paths.jsonl",
+        "conformance/cases/upstream_parity_guards.jsonl"
+      ]
+    },
+    {
+      "id": "config_skin_i18n",
+      "description": "3 config loaders, atomic YAML writes, skins, and layered i18n",
+      "hermes_prefixes": [
+        "hermes_cli/config",
+        "config_defaults.py",
+        "config_effective.py",
+        "skin_engine.py",
+        "agent/i18n.py",
+        "locales/"
+      ],
+      "rust_targets": [
+        "crates/saif-config/src/config.rs",
+        "crates/saif-config/src/skin.rs",
+        "crates/saif-config/src/i18n.rs"
+      ],
+      "conformance_suites": [
+        "crates/saif-conformance/tests/phases1_7_e2e.rs"
+      ]
+    },
+    {
+      "id": "prompt_turn_engine",
+      "description": "PromptBuilder byte-stable caching, AgentRunner turn phases, role alternation, ContextCompressor",
+      "hermes_prefixes": [
+        "run_agent.py",
+        "agent/"
+      ],
+      "rust_targets": [
+        "crates/saif-core/src/runner.rs",
+        "crates/saif-core/src/prompt.rs",
+        "crates/saif-core/src/compressor.rs"
+      ],
+      "conformance_suites": [
+        "crates/saif-conformance/tests/invariants_e2e.rs",
+        "crates/saif-conformance/tests/phases1_7_e2e.rs"
+      ]
+    },
+    {
+      "id": "providers_transports",
+      "description": "36+ provider catalog, OpenAI/Anthropic/Codex/Bedrock transports, CredentialPool, AuxiliaryClient",
+      "hermes_prefixes": [
+        "providers/",
+        "plugins/model-providers/",
+        "agent/transports/",
+        "agent/anthropic_adapter.py",
+        "agent/chat_completions.py",
+        "agent/codex_responses_adapter.py",
+        "agent/bedrock_adapter.py",
+        "agent/azure_identity_adapter.py",
+        "agent/auxiliary_client.py",
+        "agent/credential_pool.py"
+      ],
+      "rust_targets": [
+        "crates/saif-providers/src/catalog.rs",
+        "crates/saif-providers/src/transport.rs",
+        "crates/saif-providers/src/codex.rs",
+        "crates/saif-providers/src/bedrock.rs",
+        "crates/saif-providers/src/credential_pool.rs",
+        "crates/saif-providers/src/auxiliary.rs"
+      ],
+      "conformance_suites": [
+        "conformance/cases/codex_transport.jsonl",
+        "crates/saif-conformance/tests/waves3_6_e2e.rs",
+        "crates/saif-conformance/tests/phases1_7_e2e.rs"
+      ]
+    },
+    {
+      "id": "persistence_kanban",
+      "description": "SQLite v32 state.db, FTS5 v3 + trigram + sanitizer, shape_preview, KanbanStore",
+      "hermes_prefixes": [
+        "persistence/",
+        "session_rules/",
+        "hermes_state",
+        "kanban_db.py",
+        "hermes_cli/kanban"
+      ],
+      "rust_targets": [
+        "crates/saif-persistence/src/schema.rs",
+        "crates/saif-persistence/src/sqlite.rs",
+        "crates/saif-persistence/src/kanban.rs",
+        "crates/saif-persistence/src/preview.rs"
+      ],
+      "conformance_suites": [
+        "conformance/cases/sqlite_fts_preview.jsonl",
+        "crates/saif-conformance/tests/phases1_7_e2e.rs"
+      ]
+    },
+    {
+      "id": "tools_sandbox_cdp",
+      "description": "ToolRegistry, toolsets, fuzzy/V4A patch, cloud sandboxes, CDP browser vault, execute_code, MCP, media",
+      "hermes_prefixes": [
+        "model_tools.py",
+        "toolsets.py",
+        "tools/"
+      ],
+      "rust_targets": [
+        "crates/saif-tools/src/registry.rs",
+        "crates/saif-tools/src/builtin_tools.rs",
+        "crates/saif-tools/src/fuzzy_match.rs",
+        "crates/saif-tools/src/patch_parser.rs",
+        "crates/saif-tools/src/env.rs",
+        "crates/saif-tools/src/cloud_env.rs",
+        "crates/saif-tools/src/browser.rs",
+        "crates/saif-tools/src/code_exec.rs",
+        "crates/saif-tools/src/media_tools.rs",
+        "crates/saif-tools/src/mcp.rs"
+      ],
+      "conformance_suites": [
+        "conformance/cases/patch_fuzzy.jsonl",
+        "conformance/cases/media_exec_helpers.jsonl",
+        "crates/saif-conformance/tests/waves3_6_e2e.rs"
+      ]
+    },
+    {
+      "id": "skills_threat_curator",
+      "description": "SKILL.md frontmatter, 60-char index cap, threat scanner, usage telemetry, Curator",
+      "hermes_prefixes": [
+        "skills/",
+        "optional-skills/",
+        "agent/skill_utils.py",
+        "agent/curator.py",
+        "tools/skill",
+        "tools/threat_patterns.py"
+      ],
+      "rust_targets": [
+        "crates/saif-skills/src/frontmatter.rs",
+        "crates/saif-skills/src/store.rs",
+        "crates/saif-skills/src/threat.rs",
+        "crates/saif-skills/src/curator.rs"
+      ],
+      "conformance_suites": [
+        "conformance/cases/skills_frontmatter.jsonl",
+        "conformance/cases/prompt_injection_scan.jsonl"
+      ]
+    },
+    {
+      "id": "plugins_host",
+      "description": "Plugin manifests, SHA-40 catalog, removed blocklist, HookRegistry, out-of-process stdio host",
+      "hermes_prefixes": [
+        "plugins/",
+        "hermes_cli/plugin",
+        "hermes_cli/plugins"
+      ],
+      "rust_targets": [
+        "crates/saif-plugins/src/manifest.rs",
+        "crates/saif-plugins/src/catalog.rs",
+        "crates/saif-plugins/src/hooks.rs",
+        "crates/saif-plugins/src/host.rs"
+      ],
+      "conformance_suites": [
+        "crates/saif-conformance/tests/invariants_e2e.rs"
+      ]
+    },
+    {
+      "id": "cron_scheduler",
+      "description": "Schedule parser, catch-up grace, advance_before_dispatch, tick lock, live execution",
+      "hermes_prefixes": [
+        "cron/"
+      ],
+      "rust_targets": [
+        "crates/saif-cron/src/schedule.rs",
+        "crates/saif-cron/src/store.rs",
+        "crates/saif-cron/src/scheduler.rs"
+      ],
+      "conformance_suites": [
+        "conformance/cases/cron_schedules.jsonl",
+        "crates/saif-conformance/tests/phases1_7_e2e.rs"
+      ]
+    },
+    {
+      "id": "gateway_platforms",
+      "description": "30 gateway platform specs, RoutingIdentity, BusyMessageGuard, StreamDraftController, GatewayMultiplexer",
+      "hermes_prefixes": [
+        "gateway/",
+        "plugins/platforms/",
+        "hermes_cli/gateway"
+      ],
+      "rust_targets": [
+        "crates/saif-gateway/src/multiplex.rs",
+        "crates/saif-gateway/src/platforms.rs",
+        "crates/saif-gateway/src/telegram.rs",
+        "crates/saif-gateway/src/guards.rs",
+        "crates/saif-gateway/src/streaming.rs",
+        "crates/saif-gateway/src/api_server.rs"
+      ],
+      "conformance_suites": [
+        "crates/saif-conformance/tests/waves3_6_e2e.rs",
+        "crates/saif-conformance/tests/phases1_7_e2e.rs"
+      ]
+    },
+    {
+      "id": "tui_rpc",
+      "description": "Shared JSON-RPC 2.0 wire contracts, native ratatui TUI, tui-gateway stdio server",
+      "hermes_prefixes": [
+        "tui_gateway/",
+        "ui-tui/"
+      ],
+      "rust_targets": [
+        "crates/saif-rpc-contract/src/lib.rs",
+        "crates/saif-tui/src/tui_app.rs",
+        "crates/saif-tui/src/gateway_stdio.rs"
+      ],
+      "conformance_suites": [
+        "crates/saif-conformance/tests/waves3_6_e2e.rs"
+      ]
+    },
+    {
+      "id": "web_dashboard",
+      "description": "Axum REST/WS/PTY bridge, WASM frontend, CSP headers, static asset handling",
+      "hermes_prefixes": [
+        "web/",
+        "hermes_cli/web_routers/",
+        "pty_bridge.py"
+      ],
+      "rust_targets": [
+        "crates/saif-web/src/lib.rs",
+        "apps/saif-web-ui/src/lib.rs"
+      ],
+      "conformance_suites": [
+        "crates/saif-conformance/tests/phases1_7_e2e.rs"
+      ]
+    },
+    {
+      "id": "desktop_shell",
+      "description": "Tauri v2 desktop sidecar and release SHA-256 updater check",
+      "hermes_prefixes": [
+        "apps/desktop/"
+      ],
+      "rust_targets": [
+        "apps/saif-desktop/src-tauri/src/main.rs"
+      ],
+      "conformance_suites": []
+    },
+    {
+      "id": "acp_cli",
+      "description": "Editor ACP server, CLI dispatch, batch runner, host process lifecycle",
+      "hermes_prefixes": [
+        "acp_adapter/",
+        "cli.py",
+        "hermes_cli/",
+        "batch_runner.py",
+        "hermes_platform/"
+      ],
+      "rust_targets": [
+        "crates/saif-acp/src/lib.rs",
+        "crates/saif-cli/src/main.rs",
+        "crates/saif-platform/src/lib.rs",
+        "crates/saif-core/src/batch.rs"
+      ],
+      "conformance_suites": [
+        "conformance/cases/batch_sharegpt.jsonl",
+        "crates/saif-cli/tests/cli_e2e.rs"
+      ]
+    }
+  ]
+}

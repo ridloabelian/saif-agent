@@ -66,3 +66,9 @@ Decision: Execute in 6 waves tracked in `rust/MAP.md`:
 - Wave 1–2 (Foundation + Core Runtime + Native TUI + Core Gateway/Web/ACP/CLI): Delivered & verified immediately with golden oracle replay.
 - Wave 3–6 (Full 36+ Provider Quirks, Docker/Modal/Daytona/Vercel Sandboxes, CDP Browser Harness, Full 25+ Gateway Platforms, Leptos/Yew Dashboard UI + Tauri v2 Bundling, RL/Atropos Batch Runner): Tracked with explicit contracts in `rust/MAP.md` and `rust/HANDOFF.md`.
 Consequences: Immediate runnable, tested `saif` binary in Wave 1–2 with clear zero-ambiguity expansion paths for Waves 3–6.
+
+## ADR-011: Net-Tree Subsystem Upstream Sync & Lockfile (`UPSTREAM_LOCK.json` + `saif upstream`)
+Status: accepted (2026-11-20)
+Context: `NousResearch/hermes-agent` advances by thousands of commits per month across `plugin-catalog/` bumps, Python/Node packaging files, and substantive runtime/security fixes (`agent/redact_*.py`, `fix(profiles)`, `gateway/`, `web/`). Reviewing raw commit logs manually does not scale, and cloning full blobs wastes host disk.
+Decision: Track upstream parity declaratively via `conformance/UPSTREAM_LOCK.json` and a native `saif upstream` CLI (`status`, `diff`, `ack`) using ephemeral `--bare --filter=blob:none` temporary fetches to compute net diffs per subsystem (`PORT_REQUIRED` vs `SKIP_RUNTIME_SPECIFIC` vs `IGNORED_NOISE` vs `UNMAPPED`).
+Consequences: Ongoing upstream parity tracking requires a single `saif upstream diff --port-only` check, keeps `~/.hermes` untouched, leaves zero cached git bloat on disk, and ties every upstream behavior change directly to target Rust files and golden `.jsonl` suites.

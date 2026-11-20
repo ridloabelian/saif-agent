@@ -1,10 +1,14 @@
-use crate::registry::ToolError;
+use crate::registry::{ToolContext, ToolError, ToolHandler, ToolRegistry};
+use async_trait::async_trait;
+use saif_providers::ToolDefinition;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 
@@ -152,4 +156,95 @@ impl McpClient {
         let _ = self.child.kill().await;
         let _ = self.child.wait().await;
     }
+}
+
+struct McpRemoteTool {
+    registered_name: String,
+    remote_name: String,
+    description: String,
+    parameters: Value,
+    server: McpServerConfig,
+    scrubbed_env: BTreeMap<String, String>,
+}
+
+#[async_trait]
+impl ToolHandler for McpRemoteTool {
+    fn name(&self) -> &str {
+        &self.registered_name
+    }
+
+    fn toolset(&self) -> &str {
+        "mcp"
+    }
+
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: self.registered_name.clone(),
+            description: self.description.clone(),
+            parameters: self.parameters.clone(),
+        }
+    }
+
+    async fn execute(&self, args: Value, _ctx: &ToolContext) -> Result<String, ToolError> {
+        let mut client = McpClient::connect_stdio(&self.server, &self.scrubbed_env).await?;
+        let res = client.call_tool(&self.remote_name, args).await;
+        client.close().await;
+        let val = res?;
+        serde_json::to_string(&val).map_err(|e| ToolError::Execution(e.to_string()))
+    }
+}
+
+/// Discover and register tools from trusted MCP servers (`tools/mcp_tool_registration.py` parity).
+pub async fn register_trusted_mcp_tools(
+    registry: &ToolRegistry,
+    servers: &[McpServerConfig],
+    trust: &McpTrustStore,
+    scrubbed_env: &BTreeMap<String, String>,
+) -> usize {
+    let mut count = 0usize;
+    for srv in servers {
+        if !trust.is_trusted(&srv.name) || srv.command.trim().is_empty() {
+            continue;
+        }
+        let Ok(Ok(mut client)) = tokio::time::timeout(
+            Duration::from_secs(10),
+            McpClient::connect_stdio(srv, scrubbed_env),
+        )
+        .await
+        else {
+            continue;
+        };
+        if let Ok(Ok(list_res)) =
+            tokio::time::timeout(Duration::from_secs(10), client.list_tools()).await
+        {
+            if let Some(tools) = list_res.get("tools").and_then(|v| v.as_array()) {
+                for tool in tools {
+                    let Some(remote_name) = tool.get("name").and_then(|v| v.as_str()) else {
+                        continue;
+                    };
+                    let description = tool
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Trusted MCP tool")
+                        .to_string();
+                    let parameters = tool
+                        .get("inputSchema")
+                        .cloned()
+                        .unwrap_or_else(|| json!({ "type": "object" }));
+                    let registered_name = format!("mcp__{}__{}", srv.name, remote_name);
+                    registry.register(Arc::new(McpRemoteTool {
+                        registered_name,
+                        remote_name: remote_name.to_string(),
+                        description,
+                        parameters,
+                        server: srv.clone(),
+                        scrubbed_env: scrubbed_env.clone(),
+                    }));
+                    count += 1;
+                }
+            }
+        }
+        client.close().await;
+    }
+    count
 }

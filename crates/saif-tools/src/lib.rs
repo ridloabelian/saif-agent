@@ -27,7 +27,7 @@ pub use env::{
     DockerEnv, ExecResult, ExecutionEnvironment, LocalEnv, ProcessEntry, ProcessRegistry, SshEnv,
 };
 pub use fuzzy_match::{fuzzy_find_and_replace, FuzzyReplaceResult};
-pub use mcp::{McpClient, McpServerConfig, McpTrustStore};
+pub use mcp::{register_trusted_mcp_tools, McpClient, McpServerConfig, McpTrustStore};
 pub use media_tools::{
     enforce_byte_limit, tts_response_format_from_path, wrap_pcm_as_wav,
     TTS_RESPONSE_BODY_LIMIT_BYTES,

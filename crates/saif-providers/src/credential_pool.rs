@@ -224,3 +224,39 @@ impl CredentialPool {
         entry.cooldown_until = Some(now_epoch.saturating_add(ttl));
     }
 }
+
+/// Read a migrated or OAuth credential from `<saif_home>/auth.json` if present.
+pub fn read_auth_json_secret(saif_home: &Path, provider_id: &str) -> Option<String> {
+    let raw = fs::read_to_string(saif_home.join("auth.json")).ok()?;
+    let val: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    if let Some(entry) = val
+        .get(provider_id)
+        .or_else(|| val.pointer(&format!("/providers/{provider_id}")))
+    {
+        if let Some(tok) = extract_token_field(entry) {
+            return Some(tok);
+        }
+    }
+    if val.get("provider").and_then(|p| p.as_str()) == Some(provider_id) {
+        return extract_token_field(&val);
+    }
+    None
+}
+
+fn extract_token_field(entry: &serde_json::Value) -> Option<String> {
+    if let Some(s) = entry.as_str() {
+        let trimmed = s.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    for key in ["api_key", "access_token", "token", "key"] {
+        if let Some(s) = entry.get(key).and_then(|v| v.as_str()) {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}

@@ -1,10 +1,11 @@
 use clap::{Parser, Subcommand};
 use saif_config::{
     atomic_yaml_write, clear_named_profile_deleted, default_saif_root, list_live_profiles,
-    load_config, mark_named_profile_deleted, migrate_from_hermes, validate_profile_id,
-    ProfileScope, SaifConfig, SecretScope,
+    load_cli_config, load_config, load_effective_saif_config, mark_named_profile_deleted,
+    migrate_from_hermes, parse_git_name_status, validate_profile_id, ProfileScope, SaifConfig,
+    SecretScope, UpstreamLock,
 };
-use saif_core::{run_batch_dataset, AgentEvent, AgentRunner, TurnOptions};
+use saif_core::{run_batch_dataset, AgentRunner, TurnOptions};
 use saif_cron::{CronScheduler, CronStore};
 use saif_gateway::{
     build_gateway_router, builtin_platform_specs, converge_multiplex_migration,
@@ -12,19 +13,22 @@ use saif_gateway::{
 };
 use saif_persistence::{KanbanStore, PersistenceStore, SqliteStore, TaskStatus};
 use saif_platform::{ExecutableResolver, HostFacts};
-use saif_plugins::{HookRegistry, PluginManager};
-use saif_providers::{builtin_providers, ChatMessage, CredentialPool};
+use saif_plugins::PluginManager;
+use saif_providers::{builtin_providers, ChatMessage, CredentialPool, PoolStrategy};
 use saif_skills::{Curator, SkillStore};
 use saif_tools::{
-    register_all_builtin_tools, McpTrustStore, ProcessRegistry, TodoStore, ToolRegistry,
+    register_all_builtin_tools, register_trusted_mcp_tools, McpServerConfig, McpTrustStore,
+    ProcessRegistry, TodoStore, ToolRegistry,
 };
 use saif_tui::{run_tui, run_tui_gateway};
 use saif_web::{run_web_server, WebState};
 use std::fs;
 use std::io::{self, BufRead, Write};
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command as StdCommand;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing_subscriber::EnvFilter;
@@ -166,6 +170,47 @@ enum Commands {
         #[command(subcommand)]
         action: AuthAction,
     },
+    /// Track and classify upstream NousResearch/hermes-agent updates
+    Upstream {
+        #[command(subcommand)]
+        action: UpstreamAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum UpstreamAction {
+    /// Compare conformance/UPSTREAM_LOCK.json against upstream NousResearch/hermes-agent
+    Status {
+        #[arg(long)]
+        lock: Option<PathBuf>,
+        #[arg(long)]
+        local_repo: Option<PathBuf>,
+    },
+    /// Classify upstream changed files into PORT_REQUIRED vs SKIP_RUNTIME_SPECIFIC vs IGNORED_NOISE
+    Diff {
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        to: Option<String>,
+        #[arg(long)]
+        subsystem: Option<String>,
+        #[arg(long)]
+        port_only: bool,
+        #[arg(long)]
+        json: bool,
+        #[arg(long)]
+        lock: Option<PathBuf>,
+        #[arg(long)]
+        local_repo: Option<PathBuf>,
+    },
+    /// Record a verified upstream commit SHA into conformance/UPSTREAM_LOCK.json
+    Ack {
+        sha: String,
+        #[arg(long)]
+        subject: Option<String>,
+        #[arg(long)]
+        lock: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -178,6 +223,9 @@ enum AuthAction {
         provider: String,
         id: String,
         secret: String,
+    },
+    Strategy {
+        strategy: String,
     },
     Status,
 }
@@ -327,6 +375,7 @@ enum PluginsAction {
 
 #[derive(Subcommand)]
 enum McpAction {
+    List,
     Trust { server_name: String },
     Check { server_name: String },
 }
@@ -339,22 +388,51 @@ struct RuntimeBundle {
     cwd: PathBuf,
 }
 
-fn build_runtime(profile_name: Option<&str>) -> anyhow::Result<RuntimeBundle> {
+async fn build_runtime(
+    profile_name: Option<&str>,
+    effective: bool,
+) -> anyhow::Result<RuntimeBundle> {
     let root = default_saif_root();
     let multiplex = ProfileScope::detect_multiplex_active(&root);
     let profile = Arc::new(ProfileScope::for_profile(root, profile_name, multiplex)?);
     profile.ensure_layout()?;
-    let cfg = Arc::new(load_config(&profile.home_dir)?);
+    let cfg = Arc::new(if effective {
+        load_effective_saif_config(&profile.home_dir, Some(&profile.secrets))?
+    } else {
+        load_cli_config(&profile.home_dir)?
+    });
     let store =
         SqliteStore::open_with_journal_mode(&profile.state_db_path(), &cfg.database.journal_mode)?;
     let registry = ToolRegistry::new();
     register_all_builtin_tools(&registry, ProcessRegistry::new(), TodoStore::default());
+
+    let child_env = profile
+        .secrets
+        .build_child_env(&profile.home_dir, &cfg.terminal.env_passthrough);
+    if !cfg.mcp_servers.is_empty() {
+        let trust = McpTrustStore::new(&profile.home_dir);
+        let servers: Vec<McpServerConfig> = cfg
+            .mcp_servers
+            .iter()
+            .map(|(name, entry)| McpServerConfig {
+                name: name.clone(),
+                command: entry.command.clone(),
+                args: entry.args.clone(),
+                env: entry.env.clone(),
+            })
+            .collect();
+        let _ = register_trusted_mcp_tools(&registry, &servers, &trust, &child_env).await;
+    }
+
+    let hooks = PluginManager::new(profile.plugins_dir(), &cfg.plugins.disabled)
+        .build_hook_registry(&cfg.plugins.isolation, &profile.logs_dir(), child_env);
+
     let agent = AgentRunner::new(
         Arc::clone(&profile),
         Arc::clone(&cfg),
         registry,
         Some(store.clone()),
-        HookRegistry::new(),
+        hooks,
     );
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     Ok(RuntimeBundle {
@@ -364,6 +442,14 @@ fn build_runtime(profile_name: Option<&str>) -> anyhow::Result<RuntimeBundle> {
         agent,
         cwd,
     })
+}
+
+async fn build_cli_runtime(profile_name: Option<&str>) -> anyhow::Result<RuntimeBundle> {
+    build_runtime(profile_name, false).await
+}
+
+async fn build_effective_runtime(profile_name: Option<&str>) -> anyhow::Result<RuntimeBundle> {
+    build_runtime(profile_name, true).await
 }
 
 #[tokio::main]
@@ -377,19 +463,19 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     if let Some(prompt) = cli.query.as_deref() {
-        let rt = build_runtime(cli.profile.as_deref())?;
+        let rt = build_cli_runtime(cli.profile.as_deref()).await?;
         return ProfileScope::run_scoped(Arc::clone(&rt.profile), async move {
             let (ev_tx, mut ev_rx) = mpsc::unbounded_channel();
             let printer = tokio::spawn(async move {
                 let mut streamed = false;
                 while let Some(ev) = ev_rx.recv().await {
                     match ev {
-                        AgentEvent::ContentDelta(d) => {
+                        saif_core::AgentEvent::ContentDelta(d) => {
                             streamed = true;
                             print!("{d}");
                             let _ = io::stdout().flush();
                         }
-                        AgentEvent::FinalResponse(full) => {
+                        saif_core::AgentEvent::FinalResponse(full) => {
                             if !streamed && !full.is_empty() {
                                 print!("{full}");
                             }
@@ -426,7 +512,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if cli.tui {
-        let rt = build_runtime(cli.profile.as_deref())?;
+        let rt = build_effective_runtime(cli.profile.as_deref()).await?;
         return ProfileScope::run_scoped(Arc::clone(&rt.profile), async move {
             run_tui(rt.profile, rt.cfg, Some(rt.store), rt.agent, rt.cwd).await
         })
@@ -435,21 +521,21 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         None | Some(Commands::Chat) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_cli_runtime(cli.profile.as_deref()).await?;
             ProfileScope::run_scoped(Arc::clone(&rt.profile), async move {
                 run_repl(rt, cli.model, cli.provider, cli.base_url, cli.session).await
             })
             .await
         }
         Some(Commands::TuiGateway) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_effective_runtime(cli.profile.as_deref()).await?;
             ProfileScope::run_scoped(Arc::clone(&rt.profile), async move {
                 run_tui_gateway(rt.profile, rt.cfg, Some(rt.store), rt.agent, rt.cwd).await
             })
             .await
         }
         Some(Commands::Status) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_cli_runtime(cli.profile.as_deref()).await?;
             let sessions = rt.store.count_sessions().unwrap_or(0);
             println!("Saif Agent v{}", env!("CARGO_PKG_VERSION"));
             println!("Profile:  {}", rt.profile.profile_name);
@@ -492,13 +578,13 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Commands::Config { action }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_runtime_for_config(cli.profile.as_deref()).await?;
             match action {
                 ConfigAction::Show => {
                     println!("{}", serde_json::to_string_pretty(rt.cfg.as_ref())?);
                 }
                 ConfigAction::Set { key, value } => {
-                    let mut cfg = (*rt.cfg).clone();
+                    let mut cfg = load_config(&rt.profile.home_dir)?;
                     match key.as_str() {
                         "model" => cfg.model = value,
                         "provider" => cfg.provider = value,
@@ -548,7 +634,7 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Commands::Sessions { action }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_cli_runtime(cli.profile.as_deref()).await?;
             match action {
                 SessionsAction::List { limit } => {
                     for s in rt.store.list_sessions(limit).await? {
@@ -570,7 +656,7 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Commands::Skills { action }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_cli_runtime(cli.profile.as_deref()).await?;
             let store = SkillStore::new(rt.profile.skills_dir(), &rt.cfg.skills.disabled);
             match action {
                 SkillsAction::List => {
@@ -600,7 +686,7 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Commands::Curator { action }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_cli_runtime(cli.profile.as_deref()).await?;
             let store = SkillStore::new(rt.profile.skills_dir(), &rt.cfg.skills.disabled);
             let curator = Curator::new(rt.profile.skills_dir());
             match action {
@@ -628,7 +714,7 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Commands::Cron { action }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_effective_runtime(cli.profile.as_deref()).await?;
             let cron_store = CronStore::new(rt.profile.cron_dir());
             match action {
                 CronAction::List => {
@@ -658,14 +744,8 @@ async fn main() -> anyhow::Result<()> {
                     println!("Removed {id}");
                 }
                 CronAction::Tick => {
-                    let sched =
-                        CronScheduler::new(cron_store, rt.cfg.cron.inactivity_timeout_seconds);
-                    let outcome = sched.tick_due_jobs()?;
-                    println!(
-                        "Due jobs: {} (locked={})",
-                        outcome.due_jobs.len(),
-                        outcome.skipped_due_to_lock
-                    );
+                    let (executed, skipped) = run_cron_tick_once(&rt).await?;
+                    println!("Due jobs: {executed} (locked={skipped})");
                 }
             }
             Ok(())
@@ -753,7 +833,7 @@ async fn main() -> anyhow::Result<()> {
                 Ok(())
             }
             GatewayAction::Run { listen } => {
-                let rt = build_runtime(cli.profile.as_deref())?;
+                let rt = build_effective_runtime(cli.profile.as_deref()).await?;
                 let root = default_saif_root();
                 let mut mux = GatewayMultiplexer::new(&rt.profile.profile_name);
                 mux.add_slot(
@@ -763,7 +843,7 @@ async fn main() -> anyhow::Result<()> {
                 );
                 for (name, _) in list_live_profiles(&root) {
                     if name != rt.profile.profile_name {
-                        if let Ok(slot_rt) = build_runtime(Some(&name)) {
+                        if let Ok(slot_rt) = build_effective_runtime(Some(&name)).await {
                             mux.add_slot(slot_rt.profile, slot_rt.cfg, slot_rt.agent);
                         }
                     }
@@ -772,18 +852,46 @@ async fn main() -> anyhow::Result<()> {
                     .map_err(|e| anyhow::anyhow!(e))?;
                 let mux_arc = Arc::new(mux);
 
-                ProfileScope::run_scoped(Arc::clone(&rt.profile), async move {
-                    if let Some(tg_token) = rt.profile.secrets.get_secret("TELEGRAM_BOT_TOKEN") {
-                        let allow_all = rt.cfg.gateway.allow_all_users;
-                        let tg_agent = rt.agent.clone();
+                for slot in mux_arc.slots() {
+                    if let Some(tg_token) = slot.profile.secrets.get_secret("TELEGRAM_BOT_TOKEN") {
+                        let allow_all = slot.config.gateway.allow_all_users;
+                        let allowed_users = slot.config.gateway.allowed_users.clone();
+                        let tg_agent = slot.agent.clone();
                         let tg_cwd = rt.cwd.clone();
-                        let pname = rt.profile.profile_name.clone();
+                        let pname = slot.profile.profile_name.clone();
+                        let scope = Arc::clone(&slot.profile);
                         tokio::spawn(async move {
-                            let mut adapter =
-                                TelegramAdapter::new(tg_token, pname, allow_all, Vec::new());
-                            let _ = adapter.run_polling(tg_agent, tg_cwd).await;
+                            ProfileScope::run_scoped(scope, async move {
+                                let mut adapter =
+                                    TelegramAdapter::new(tg_token, pname, allow_all, allowed_users);
+                                let _ = adapter.run_polling(tg_agent, tg_cwd).await;
+                            })
+                            .await;
                         });
                     }
+                }
+
+                // Background cron scheduler loop across all multiplexed profile slots
+                let cron_mux = Arc::clone(&mux_arc);
+                let cron_cwd = rt.cwd.clone();
+                tokio::spawn(async move {
+                    let mut interval = tokio::time::interval(Duration::from_secs(30));
+                    interval.tick().await;
+                    loop {
+                        interval.tick().await;
+                        for slot in cron_mux.slots() {
+                            let _ = execute_cron_for_profile(
+                                Arc::clone(&slot.profile),
+                                Arc::clone(&slot.config),
+                                slot.agent.clone(),
+                                cron_cwd.clone(),
+                            )
+                            .await;
+                        }
+                    }
+                });
+
+                ProfileScope::run_scoped(Arc::clone(&rt.profile), async move {
                     let router = build_gateway_router(GatewayHttpState {
                         agent: rt.agent,
                         cwd: rt.cwd,
@@ -798,17 +906,17 @@ async fn main() -> anyhow::Result<()> {
             }
         },
         Some(Commands::Serve { listen }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_effective_runtime(cli.profile.as_deref()).await?;
             let state = build_web_state(rt, true);
             run_web_server(listen, state).await
         }
         Some(Commands::Dashboard { listen }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_effective_runtime(cli.profile.as_deref()).await?;
             let state = build_web_state(rt, false);
             run_web_server(listen, state).await
         }
         Some(Commands::Plugins { action }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_cli_runtime(cli.profile.as_deref()).await?;
             let mgr = PluginManager::new(rt.profile.plugins_dir(), &rt.cfg.plugins.disabled);
             match action {
                 PluginsAction::List => {
@@ -827,9 +935,18 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Commands::Mcp { action }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_cli_runtime(cli.profile.as_deref()).await?;
             let store = McpTrustStore::new(&rt.profile.home_dir);
             match action {
+                McpAction::List => {
+                    for (name, entry) in &rt.cfg.mcp_servers {
+                        println!(
+                            "{name}\t{}\ttrusted={}",
+                            entry.command,
+                            store.is_trusted(name)
+                        );
+                    }
+                }
                 McpAction::Trust { server_name } => {
                     store.grant_trust(&server_name)?;
                     println!(
@@ -868,7 +985,7 @@ async fn main() -> anyhow::Result<()> {
             resume,
             format,
         }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_cli_runtime(cli.profile.as_deref()).await?;
             if format == "raw" {
                 let raw = fs::read_to_string(&input)?;
                 let mut out_lines = Vec::new();
@@ -912,7 +1029,7 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Commands::Auth { action }) => {
-            let rt = build_runtime(cli.profile.as_deref())?;
+            let rt = build_cli_runtime(cli.profile.as_deref()).await?;
             let mut pool = CredentialPool::open(&rt.profile.home_dir);
             match action {
                 AuthAction::List { provider } => {
@@ -933,6 +1050,20 @@ async fn main() -> anyhow::Result<()> {
                     pool.save()?;
                     println!("Added pooled credential '{id}' for '{provider}'");
                 }
+                AuthAction::Strategy { strategy } => {
+                    let parsed = match strategy.trim().to_ascii_lowercase().as_str() {
+                        "fill_first" => PoolStrategy::FillFirst,
+                        "round_robin" => PoolStrategy::RoundRobin,
+                        "random" => PoolStrategy::Random,
+                        "least_used" => PoolStrategy::LeastUsed,
+                        other => anyhow::bail!(
+                            "unsupported strategy '{other}' (expected fill_first|round_robin|random|least_used)"
+                        ),
+                    };
+                    pool.set_strategy(parsed);
+                    pool.save()?;
+                    println!("Updated auth pool strategy -> {parsed:?}");
+                }
                 AuthAction::Status => {
                     println!(
                         "{}",
@@ -943,6 +1074,349 @@ async fn main() -> anyhow::Result<()> {
                     );
                 }
             }
+            Ok(())
+        }
+        Some(Commands::Upstream { action }) => handle_upstream_cmd(action),
+    }
+}
+
+async fn build_runtime_for_config(profile_name: Option<&str>) -> anyhow::Result<RuntimeBundle> {
+    build_cli_runtime(profile_name).await
+}
+
+async fn run_cron_tick_once(rt: &RuntimeBundle) -> anyhow::Result<(usize, bool)> {
+    execute_cron_for_profile(
+        Arc::clone(&rt.profile),
+        Arc::clone(&rt.cfg),
+        rt.agent.clone(),
+        rt.cwd.clone(),
+    )
+    .await
+}
+
+async fn execute_cron_for_profile(
+    profile: Arc<ProfileScope>,
+    cfg: Arc<SaifConfig>,
+    agent: AgentRunner,
+    default_cwd: PathBuf,
+) -> anyhow::Result<(usize, bool)> {
+    let cron_store = CronStore::new(profile.cron_dir());
+    let timeout_secs = cfg.cron.inactivity_timeout_seconds.max(1);
+    let sched = CronScheduler::new(cron_store.clone(), timeout_secs);
+    let outcome = sched.tick_due_jobs()?;
+    if outcome.skipped_due_to_lock {
+        return Ok((0, true));
+    }
+    let count = outcome.due_jobs.len();
+    for job in outcome.due_jobs {
+        let job_cwd = job
+            .workdir
+            .as_deref()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| default_cwd.clone());
+        let _ = fs::create_dir_all(cron_store.output_dir());
+        let out_file = cron_store.output_dir().join(format!("{}.json", job.id));
+
+        if job.no_agent {
+            let script_str = job.script.as_deref().unwrap_or("");
+            let res: Result<(), String> =
+                match CronStore::validate_script_path(&profile.home_dir, script_str) {
+                    Ok(script_path) => {
+                        let child_env = profile
+                            .secrets
+                            .build_child_env(&profile.home_dir, &cfg.terminal.env_passthrough);
+                        match tokio::time::timeout(
+                            Duration::from_secs(timeout_secs),
+                            tokio::process::Command::new(&script_path)
+                                .current_dir(&job_cwd)
+                                .env_clear()
+                                .envs(&child_env)
+                                .output(),
+                        )
+                        .await
+                        {
+                            Ok(Ok(out)) => {
+                                let payload = serde_json::json!({
+                                    "job_id": job.id,
+                                    "exit_code": out.status.code(),
+                                    "stdout": String::from_utf8_lossy(&out.stdout),
+                                    "stderr": String::from_utf8_lossy(&out.stderr),
+                                });
+                                let _ = fs::write(
+                                    &out_file,
+                                    serde_json::to_string_pretty(&payload).unwrap_or_default(),
+                                );
+                                if out.status.success() {
+                                    Ok(())
+                                } else {
+                                    Err(format!("script exited with {:?}", out.status.code()))
+                                }
+                            }
+                            Ok(Err(e)) => Err(e.to_string()),
+                            Err(_) => Err(format!("timeout after {timeout_secs}s")),
+                        }
+                    }
+                    Err(e) => Err(e.to_string()),
+                };
+            let (status, err_msg) = match res {
+                Ok(()) => ("ok", None),
+                Err(ref e) if e.starts_with("timeout") => ("timeout", Some(e.as_str())),
+                Err(ref e) => ("error", Some(e.as_str())),
+            };
+            let _ = cron_store.record_completion(&job.id, status, err_msg);
+        } else {
+            let scope = Arc::clone(&profile);
+            let runner = agent.clone();
+            let opts = TurnOptions {
+                source: "cron".to_string(),
+                model_override: job.model.clone(),
+                provider_override: job.provider.clone(),
+                cwd: job_cwd,
+                ..TurnOptions::default()
+            };
+            let fut = ProfileScope::run_scoped(scope, async move {
+                runner
+                    .run_conversation(
+                        &job.prompt,
+                        None,
+                        opts,
+                        None,
+                        CancellationToken::new(),
+                        None,
+                    )
+                    .await
+            });
+            match tokio::time::timeout(Duration::from_secs(timeout_secs), fut).await {
+                Ok(Ok(out)) => {
+                    let payload = serde_json::json!({
+                        "job_id": job.id,
+                        "session_id": out.session_id,
+                        "response": out.final_response,
+                    });
+                    let _ = fs::write(
+                        &out_file,
+                        serde_json::to_string_pretty(&payload).unwrap_or_default(),
+                    );
+                    let _ = cron_store.record_completion(&job.id, "ok", None);
+                }
+                Ok(Err(e)) => {
+                    let msg = e.to_string();
+                    let _ = cron_store.record_completion(&job.id, "error", Some(&msg));
+                }
+                Err(_) => {
+                    let msg = format!("timeout after {timeout_secs}s");
+                    let _ = cron_store.record_completion(&job.id, "timeout", Some(&msg));
+                }
+            }
+        }
+    }
+    Ok((count, false))
+}
+
+fn resolve_upstream_lock_path(explicit: Option<PathBuf>) -> anyhow::Result<PathBuf> {
+    if let Some(p) = explicit {
+        return Ok(p);
+    }
+    let cwd = std::env::current_dir()?;
+    let rel = cwd.join("conformance/UPSTREAM_LOCK.json");
+    if rel.exists() {
+        return Ok(rel);
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        for anc in exe.ancestors() {
+            let cand = anc.join("conformance/UPSTREAM_LOCK.json");
+            if cand.exists() {
+                return Ok(cand);
+            }
+        }
+    }
+    let manifest_rel = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("conformance/UPSTREAM_LOCK.json");
+    if manifest_rel.exists() {
+        return Ok(manifest_rel);
+    }
+    anyhow::bail!("could not locate conformance/UPSTREAM_LOCK.json; pass --lock <path>")
+}
+
+fn resolve_remote_head_sha(
+    lock: &UpstreamLock,
+    local_repo: Option<&Path>,
+) -> anyhow::Result<String> {
+    if let Some(repo) = local_repo {
+        let out = StdCommand::new("git")
+            .args([
+                "-C",
+                &repo.to_string_lossy(),
+                "rev-parse",
+                &lock.tracked_branch,
+            ])
+            .output()?;
+        if !out.status.success() {
+            anyhow::bail!(
+                "git rev-parse failed: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+        return Ok(String::from_utf8_lossy(&out.stdout).trim().to_string());
+    }
+    let ref_name = format!("refs/heads/{}", lock.tracked_branch);
+    let out = StdCommand::new("git")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .args(["ls-remote", &lock.upstream_repo, &ref_name])
+        .output()?;
+    if !out.status.success() {
+        anyhow::bail!(
+            "git ls-remote failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let sha = stdout
+        .split_whitespace()
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("empty ls-remote response for {ref_name}"))?;
+    Ok(sha.to_string())
+}
+
+fn git_name_status_diff(
+    lock: &UpstreamLock,
+    from: &str,
+    to: &str,
+    local_repo: Option<&Path>,
+) -> anyhow::Result<String> {
+    if let Some(repo) = local_repo {
+        let out = StdCommand::new("git")
+            .args([
+                "-C",
+                &repo.to_string_lossy(),
+                "diff",
+                "--name-status",
+                from,
+                to,
+            ])
+            .output()?;
+        if !out.status.success() {
+            anyhow::bail!("git diff failed: {}", String::from_utf8_lossy(&out.stderr));
+        }
+        return Ok(String::from_utf8_lossy(&out.stdout).into_owned());
+    }
+
+    let tmp_bare = tempfile::TempDir::new()?;
+    let tmp_path = tmp_bare.path().to_string_lossy().into_owned();
+    let init = StdCommand::new("git")
+        .args(["init", "--bare", &tmp_path])
+        .output()?;
+    if !init.status.success() {
+        anyhow::bail!("git init --bare failed");
+    }
+
+    let fetch = StdCommand::new("git")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .args([
+            "-C",
+            &tmp_path,
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--depth=1",
+            &lock.upstream_repo,
+            from,
+            to,
+        ])
+        .output()?;
+    if !fetch.status.success() {
+        let branch_fetch = StdCommand::new("git")
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .args([
+                "-C",
+                &tmp_path,
+                "fetch",
+                "--no-tags",
+                "--filter=blob:none",
+                &lock.upstream_repo,
+                &lock.tracked_branch,
+            ])
+            .output()?;
+        if !branch_fetch.status.success() {
+            anyhow::bail!(
+                "git fetch failed: {}",
+                String::from_utf8_lossy(&branch_fetch.stderr)
+            );
+        }
+    }
+
+    let diff = StdCommand::new("git")
+        .args(["-C", &tmp_path, "diff", "--name-status", from, to])
+        .output()?;
+    if !diff.status.success() {
+        anyhow::bail!("git diff failed: {}", String::from_utf8_lossy(&diff.stderr));
+    }
+    Ok(String::from_utf8_lossy(&diff.stdout).into_owned())
+}
+
+fn handle_upstream_cmd(action: UpstreamAction) -> anyhow::Result<()> {
+    match action {
+        UpstreamAction::Status { lock, local_repo } => {
+            let lock_path = resolve_upstream_lock_path(lock)?;
+            let parsed = UpstreamLock::load(&lock_path).map_err(|e| anyhow::anyhow!(e))?;
+            let remote_sha = resolve_remote_head_sha(&parsed, local_repo.as_deref())?;
+            let state = if remote_sha.eq_ignore_ascii_case(&parsed.synced_commit) {
+                "UP_TO_DATE"
+            } else {
+                "UPDATE_AVAILABLE"
+            };
+            println!("Upstream Repo:   {}", parsed.upstream_repo);
+            println!("Tracked Branch:  {}", parsed.tracked_branch);
+            println!("Synced Commit:   {}", parsed.synced_commit);
+            println!("Upstream HEAD:   {remote_sha}");
+            println!("Status:          {state}");
+            Ok(())
+        }
+        UpstreamAction::Diff {
+            from,
+            to,
+            subsystem,
+            port_only,
+            json,
+            lock,
+            local_repo,
+        } => {
+            let lock_path = resolve_upstream_lock_path(lock)?;
+            let parsed = UpstreamLock::load(&lock_path).map_err(|e| anyhow::anyhow!(e))?;
+            let from_sha = from.unwrap_or_else(|| parsed.synced_commit.clone());
+            let to_sha = match to {
+                Some(t) => t,
+                None => resolve_remote_head_sha(&parsed, local_repo.as_deref())?,
+            };
+            let raw_diff =
+                git_name_status_diff(&parsed, &from_sha, &to_sha, local_repo.as_deref())?;
+            let entries = parse_git_name_status(&raw_diff);
+            let report = parsed.build_report(&from_sha, &to_sha, entries);
+            let output = if json {
+                serde_json::to_string_pretty(&report)? + "\n"
+            } else {
+                report.render_markdown(port_only, subsystem.as_deref())
+            };
+            if let Err(err) = io::stdout().write_all(output.as_bytes()) {
+                if err.kind() != io::ErrorKind::BrokenPipe {
+                    return Err(err.into());
+                }
+            }
+            Ok(())
+        }
+        UpstreamAction::Ack { sha, subject, lock } => {
+            let lock_path = resolve_upstream_lock_path(lock)?;
+            let mut parsed = UpstreamLock::load(&lock_path).map_err(|e| anyhow::anyhow!(e))?;
+            parsed
+                .ack(&sha, subject.as_deref())
+                .map_err(|e| anyhow::anyhow!(e))?;
+            parsed.save(&lock_path).map_err(|e| anyhow::anyhow!(e))?;
+            println!(
+                "Updated {} -> {}",
+                lock_path.display(),
+                parsed.synced_commit
+            );
             Ok(())
         }
     }

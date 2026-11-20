@@ -1,6 +1,6 @@
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{Query, State, WebSocketUpgrade};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
@@ -17,6 +17,7 @@ use saif_rpc_contract::{
 use saif_skills::SkillStore;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -25,6 +26,9 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 use uuid::Uuid;
+
+const WASM_BYTES: &[u8] = include_bytes!("../assets/saif_web_ui.wasm");
+const DASHBOARD_CSP: &str = "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data:";
 
 #[derive(Clone)]
 pub struct WebState {
@@ -124,12 +128,40 @@ const DASHBOARD_HTML: &str = r#"<!doctype html>
       if (ws && el.value) ws.send(JSON.stringify({ jsonrpc:'2.0', id: Date.now(), method:'prompt.submit', params:{ session_id:'web-main', prompt:el.value, steer:false } }));
       el.value = '';
     }
+    let saifWasm = null;
+    async function initWasm() {
+      try {
+        const res = await fetch('/assets/saif_web_ui.wasm');
+        if (!res.ok) return;
+        const buf = await res.arrayBuffer();
+        const mod = await WebAssembly.instantiate(buf, {});
+        saifWasm = mod.instance.exports;
+        if (saifWasm.saif_ui_init) saifWasm.saif_ui_init();
+      } catch (_) {}
+    }
+    function wasmFeedPty(text) {
+      if (!saifWasm || !saifWasm.saif_wasm_alloc || !saifWasm.saif_ui_feed_pty) return null;
+      const bytes = new TextEncoder().encode(text);
+      const ptr = saifWasm.saif_wasm_alloc(Math.max(bytes.length, 1));
+      new Uint8Array(saifWasm.memory.buffer, ptr, bytes.length).set(bytes);
+      const outLen = saifWasm.saif_ui_feed_pty(ptr, bytes.length);
+      saifWasm.saif_wasm_dealloc(ptr, Math.max(bytes.length, 1));
+      const outPtr = saifWasm.saif_ui_output_ptr();
+      return new TextDecoder().decode(new Uint8Array(saifWasm.memory.buffer, outPtr, outLen));
+    }
     function connectPty() {
       const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
       pty = new WebSocket(proto + location.host + '/api/pty?token=' + encodeURIComponent(tok));
       pty.onopen = () => pty.send('\x1b[RESIZE:100;30]');
-      pty.onmessage = async e => { const t = e.data instanceof Blob ? await e.data.text() : e.data; document.getElementById('pty-screen').textContent += t; };
+      pty.onmessage = async e => {
+        const t = e.data instanceof Blob ? await e.data.text() : e.data;
+        const screen = document.getElementById('pty-screen');
+        const rendered = wasmFeedPty(t);
+        if (rendered !== null) screen.textContent = rendered;
+        else screen.textContent += t;
+      };
     }
+    initWasm();
     function sendPty() { const el = document.getElementById('pty-cmd'); if (pty) pty.send(el.value + '\n'); el.value = ''; }
     async function loadKanban() {
       const r = await fetch('/api/kanban?token=' + encodeURIComponent(tok), { headers: hdr() }).then(r => r.json());
@@ -173,6 +205,8 @@ pub fn build_web_router(state: WebState) -> Router {
     let shared = Arc::new(state);
     Router::new()
         .route("/", get(index_handler))
+        .route("/assets/saif_web_ui.wasm", get(wasm_asset_handler))
+        .route("/favicon.ico", get(not_found_handler))
         .route("/health", get(health_handler))
         .route("/api/status", get(status_handler))
         .route("/api/sessions", get(sessions_handler))
@@ -188,6 +222,7 @@ pub fn build_web_router(state: WebState) -> Router {
         .route("/api/skills", get(skills_list_handler))
         .route("/ws", get(rpc_ws_handler))
         .route("/api/pty", get(pty_ws_handler))
+        .fallback(not_found_handler)
         .with_state(shared)
 }
 
@@ -205,7 +240,28 @@ async fn index_handler(State(state): State<Arc<WebState>>) -> Response {
     if state.headless || std::env::var("SAIF_SERVE_HEADLESS").as_deref() == Ok("1") {
         return (StatusCode::NOT_FOUND, "Headless serve mode: SPA disabled").into_response();
     }
-    Html(DASHBOARD_HTML).into_response()
+    (
+        StatusCode::OK,
+        [(header::CONTENT_SECURITY_POLICY, DASHBOARD_CSP)],
+        Html(DASHBOARD_HTML),
+    )
+        .into_response()
+}
+
+async fn wasm_asset_handler() -> Response {
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "application/wasm"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        WASM_BYTES,
+    )
+        .into_response()
+}
+
+async fn not_found_handler() -> Response {
+    (StatusCode::NOT_FOUND, "Not Found").into_response()
 }
 
 async fn health_handler() -> Json<Value> {
@@ -431,6 +487,15 @@ async fn rpc_ws_handler(
 
 async fn handle_rpc_ws(socket: WebSocket, state: Arc<WebState>) {
     let (mut sender, mut receiver) = socket.split();
+    let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Message>();
+    let writer_task = tokio::spawn(async move {
+        while let Some(msg) = out_rx.recv().await {
+            if sender.send(msg).await.is_err() {
+                break;
+            }
+        }
+    });
+
     let ready = json!({
         "jsonrpc": "2.0",
         "method": "event",
@@ -440,7 +505,12 @@ async fn handle_rpc_ws(socket: WebSocket, state: Arc<WebState>) {
             skin_name: state.config.display.skin.clone(),
         }
     });
-    let _ = sender.send(Message::Text(ready.to_string().into())).await;
+    let _ = out_tx.send(Message::Text(ready.to_string().into()));
+
+    type ActiveTurnMap = Arc<
+        tokio::sync::Mutex<HashMap<String, (CancellationToken, mpsc::UnboundedSender<String>)>>,
+    >;
+    let active_turns: ActiveTurnMap = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
     while let Some(Ok(msg)) = receiver.next().await {
         let Message::Text(raw) = msg else {
@@ -449,11 +519,42 @@ async fn handle_rpc_ws(socket: WebSocket, state: Arc<WebState>) {
         let Ok(req) = serde_json::from_str::<RpcRequest>(&raw) else {
             continue;
         };
-        let resp = match req.method.as_str() {
-            "commands.catalog" => RpcResponse::ok(
-                req.id,
-                serde_json::to_value(default_command_catalog()).unwrap_or(Value::Null),
-            ),
+        match req.method.as_str() {
+            "commands.catalog" => {
+                let resp = RpcResponse::ok(
+                    req.id,
+                    serde_json::to_value(default_command_catalog()).unwrap_or(Value::Null),
+                );
+                let _ = out_tx.send(Message::Text(
+                    serde_json::to_string(&resp).unwrap_or_default().into(),
+                ));
+            }
+            "turn.cancel" => {
+                let sid = req
+                    .params
+                    .get("session_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("web-main")
+                    .to_string();
+                let cancelled = if let Some((tok, _)) = active_turns.lock().await.remove(&sid) {
+                    tok.cancel();
+                    true
+                } else {
+                    false
+                };
+                if cancelled {
+                    let note = json!({
+                        "jsonrpc": "2.0",
+                        "method": "event",
+                        "params": GatewayEvent::RequestCancel { request_id: sid }
+                    });
+                    let _ = out_tx.send(Message::Text(note.to_string().into()));
+                }
+                let resp = RpcResponse::ok(req.id, json!({ "cancelled": cancelled }));
+                let _ = out_tx.send(Message::Text(
+                    serde_json::to_string(&resp).unwrap_or_default().into(),
+                ));
+            }
             "prompt.submit" => {
                 let params: PromptSubmitParams =
                     serde_json::from_value(req.params).unwrap_or(PromptSubmitParams {
@@ -461,56 +562,144 @@ async fn handle_rpc_ws(socket: WebSocket, state: Arc<WebState>) {
                         prompt: String::new(),
                         steer: false,
                     });
-                let (ev_tx, mut ev_rx) = mpsc::unbounded_channel();
-                let opts = TurnOptions {
-                    session_id: Some(params.session_id.clone()),
-                    source: "web".to_string(),
-                    cwd: state.cwd.clone(),
-                    ..TurnOptions::default()
-                };
-                let outcome = state
-                    .agent
-                    .run_conversation(
-                        &params.prompt,
-                        None,
-                        opts,
-                        Some(ev_tx),
-                        CancellationToken::new(),
-                        None,
+
+                if params.steer {
+                    let steered = if let Some((_, steer_tx)) =
+                        active_turns.lock().await.get(&params.session_id)
+                    {
+                        steer_tx.send(params.prompt.clone()).is_ok()
+                    } else {
+                        false
+                    };
+                    let resp = RpcResponse::ok(req.id, json!({ "steered": steered }));
+                    let _ = out_tx.send(Message::Text(
+                        serde_json::to_string(&resp).unwrap_or_default().into(),
+                    ));
+                    continue;
+                }
+
+                let state_clone = Arc::clone(&state);
+                let out_tx_clone = out_tx.clone();
+                let active_clone = Arc::clone(&active_turns);
+                let cancel = CancellationToken::new();
+                let (steer_tx, mut steer_rx) = mpsc::unbounded_channel();
+                active_turns
+                    .lock()
+                    .await
+                    .insert(params.session_id.clone(), (cancel.clone(), steer_tx));
+
+                tokio::spawn(async move {
+                    let (ev_tx, mut ev_rx) = mpsc::unbounded_channel();
+                    let sid_ev = params.session_id.clone();
+                    let out_ev = out_tx_clone.clone();
+                    let forwarder = tokio::spawn(async move {
+                        while let Some(ev) = ev_rx.recv().await {
+                            let gw_ev = match ev {
+                                AgentEvent::ContentDelta(delta) => {
+                                    Some(GatewayEvent::MessageDelta {
+                                        session_id: sid_ev.clone(),
+                                        delta,
+                                    })
+                                }
+                                AgentEvent::ThinkingDelta(delta) => {
+                                    Some(GatewayEvent::ThinkingDelta {
+                                        session_id: sid_ev.clone(),
+                                        delta,
+                                    })
+                                }
+                                AgentEvent::ToolStart { name, arguments } => {
+                                    Some(GatewayEvent::ToolStart {
+                                        session_id: sid_ev.clone(),
+                                        name,
+                                        arguments,
+                                    })
+                                }
+                                AgentEvent::ToolComplete {
+                                    name,
+                                    output_preview,
+                                    ok,
+                                } => Some(GatewayEvent::ToolComplete {
+                                    session_id: sid_ev.clone(),
+                                    name,
+                                    ok,
+                                    preview: output_preview,
+                                }),
+                                _ => None,
+                            };
+                            if let Some(event_obj) = gw_ev {
+                                let note = json!({
+                                    "jsonrpc": "2.0",
+                                    "method": "event",
+                                    "params": event_obj
+                                });
+                                if out_ev.send(Message::Text(note.to_string().into())).is_err() {
+                                    break;
+                                }
+                            }
+                        }
+                    });
+
+                    let opts = TurnOptions {
+                        session_id: Some(params.session_id.clone()),
+                        source: "web".to_string(),
+                        cwd: state_clone.cwd.clone(),
+                        ..TurnOptions::default()
+                    };
+                    let outcome = ProfileScope::run_scoped(
+                        Arc::clone(&state_clone.profile),
+                        state_clone.agent.run_conversation(
+                            &params.prompt,
+                            None,
+                            opts,
+                            Some(ev_tx),
+                            cancel,
+                            Some(&mut steer_rx),
+                        ),
                     )
                     .await;
-                while let Ok(ev) = ev_rx.try_recv() {
-                    if let AgentEvent::ContentDelta(delta) = ev {
-                        let note = json!({
-                            "jsonrpc": "2.0",
-                            "method": "event",
-                            "params": GatewayEvent::MessageDelta {
-                                session_id: params.session_id.clone(),
-                                delta,
-                            }
-                        });
-                        let _ = sender.send(Message::Text(note.to_string().into())).await;
-                    }
-                }
-                match outcome {
-                    Ok(out) => RpcResponse::ok(
-                        req.id,
-                        json!({
-                            "session_id": out.session_id,
-                            "final_response": out.final_response
-                        }),
-                    ),
-                    Err(e) => RpcResponse::err(req.id, -32000, e.to_string()),
-                }
+                    let _ = forwarder.await;
+                    active_clone.lock().await.remove(&params.session_id);
+
+                    let resp = match outcome {
+                        Ok(out) => {
+                            let done_note = json!({
+                                "jsonrpc": "2.0",
+                                "method": "event",
+                                "params": GatewayEvent::MessageComplete {
+                                    session_id: out.session_id.clone(),
+                                    content: out.final_response.clone(),
+                                }
+                            });
+                            let _ = out_tx_clone.send(Message::Text(done_note.to_string().into()));
+                            RpcResponse::ok(
+                                req.id,
+                                json!({
+                                    "session_id": out.session_id,
+                                    "final_response": out.final_response
+                                }),
+                            )
+                        }
+                        Err(e) => RpcResponse::err(req.id, -32000, e.to_string()),
+                    };
+                    let _ = out_tx_clone.send(Message::Text(
+                        serde_json::to_string(&resp).unwrap_or_default().into(),
+                    ));
+                });
             }
-            other => RpcResponse::err(req.id, -32601, format!("method not found: {other}")),
-        };
-        let _ = sender
-            .send(Message::Text(
-                serde_json::to_string(&resp).unwrap_or_default().into(),
-            ))
-            .await;
+            other => {
+                let resp = RpcResponse::err(req.id, -32601, format!("method not found: {other}"));
+                let _ = out_tx.send(Message::Text(
+                    serde_json::to_string(&resp).unwrap_or_default().into(),
+                ));
+            }
+        }
     }
+
+    for (_, (tok, _)) in active_turns.lock().await.drain() {
+        tok.cancel();
+    }
+    drop(out_tx);
+    let _ = writer_task.await;
 }
 
 async fn pty_ws_handler(

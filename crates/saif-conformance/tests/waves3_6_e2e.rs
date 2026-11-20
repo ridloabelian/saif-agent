@@ -45,6 +45,8 @@ fn sample_route(api_mode: ApiMode, base_url: String, provider_id: &str) -> Resol
         omit_temperature: true,
         supports_prompt_caching: true,
         multiplex_active: false,
+        pooled_credential_id: None,
+        saif_home: None,
         aws_region: Some("us-east-1".to_string()),
         aws_access_key_id: Some("AKIAEXAMPLE".to_string()),
         aws_secret_access_key: Some("SECRETEXAMPLE".to_string()),

@@ -24,6 +24,8 @@ pub enum ProfileError {
     InvalidProfileId(String),
     #[error("named profile home does not exist or is tombstoned: {0}")]
     MissingOrTombstoned(PathBuf),
+    #[error("profile home boundary blocked by non-directory file: {0}")]
+    FileAtHomeBoundary(PathBuf),
     #[error("profile I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -203,6 +205,12 @@ impl ProfileScope {
             Some(name) => {
                 validate_profile_id(name)?;
                 let home_dir = root_dir.join("profiles").join(name);
+                if named_profile_is_deleted(&home_dir) {
+                    return Err(ProfileError::MissingOrTombstoned(home_dir));
+                }
+                if fs::symlink_metadata(&home_dir).is_ok() && !home_dir.is_dir() {
+                    return Err(ProfileError::FileAtHomeBoundary(home_dir));
+                }
                 let secrets = SecretScope::load_from_home(&home_dir, false, multiplex_active);
                 Ok(Self {
                     profile_name: name.to_string(),
@@ -269,6 +277,24 @@ impl ProfileScope {
     }
 
     pub fn ensure_layout(&self) -> std::io::Result<()> {
+        if !self.is_default && named_profile_is_deleted(&self.home_dir) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                format!(
+                    "refusing to recreate tombstoned profile home: {}",
+                    self.home_dir.display()
+                ),
+            ));
+        }
+        if fs::symlink_metadata(&self.home_dir).is_ok() && !self.home_dir.is_dir() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!(
+                    "home boundary exists as non-directory: {}",
+                    self.home_dir.display()
+                ),
+            ));
+        }
         for dir in [
             &self.home_dir,
             &self.skills_dir(),

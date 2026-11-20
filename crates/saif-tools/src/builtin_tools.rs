@@ -395,6 +395,7 @@ pub fn register_all_builtin_tools_with_cdp(
         Arc::new(ExecuteCodeTool {
             registry: registry.clone(),
         }),
+        Arc::new(DelegateTaskTool),
         Arc::new(ToolSearchTool {
             registry: registry.clone(),
         }),
@@ -784,6 +785,48 @@ impl ToolHandler for BrowserVaultTool {
 
 struct ExecuteCodeTool {
     registry: ToolRegistry,
+}
+
+struct DelegateTaskTool;
+
+#[async_trait]
+impl ToolHandler for DelegateTaskTool {
+    fn name(&self) -> &str {
+        "delegate_task"
+    }
+
+    fn toolset(&self) -> &str {
+        "delegation"
+    }
+
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "delegate_task".to_string(),
+            description: "Delegate a scoped sub-task to an isolated child agent session."
+                .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "goal": { "type": "string" },
+                    "context": { "type": "string" },
+                    "toolsets": { "type": "array", "items": { "type": "string" } },
+                    "background": { "type": "boolean" }
+                },
+                "required": ["goal"]
+            }),
+        }
+    }
+
+    fn is_available(&self, ctx: &ToolContext) -> bool {
+        ctx.spawn_depth < ctx.config.delegation.max_spawn_depth
+            && (!ctx.is_delegated_child || ctx.config.delegation.orchestrator_enabled)
+    }
+
+    async fn execute(&self, _args: Value, _ctx: &ToolContext) -> Result<String, ToolError> {
+        Err(ToolError::Execution(
+            "delegate_task must be executed via AgentRunner".to_string(),
+        ))
+    }
 }
 
 #[async_trait]

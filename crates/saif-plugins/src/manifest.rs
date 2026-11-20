@@ -1,7 +1,9 @@
+use crate::hooks::{HookRegistry, PluginHookBridge};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -104,5 +106,25 @@ impl PluginManager {
             ));
         }
         Ok(manifest)
+    }
+
+    pub fn build_hook_registry(
+        &self,
+        isolation: &str,
+        logs_dir: &Path,
+        child_env: BTreeMap<String, String>,
+    ) -> HookRegistry {
+        let registry = HookRegistry::new();
+        let plugins = self.discover();
+        if plugins.iter().any(|p| p.enabled) {
+            let isolation_host = isolation.trim().eq_ignore_ascii_case("host");
+            registry.register(Arc::new(PluginHookBridge::new(
+                plugins,
+                isolation_host,
+                child_env,
+                logs_dir.join("plugin_hooks.jsonl"),
+            )));
+        }
+        registry
     }
 }

@@ -14,5 +14,6 @@ pub use prompt::{
     MAX_SUBDIR_HINT_CHARS,
 };
 pub use runner::{
-    validate_role_alternation, AgentError, AgentEvent, AgentOutcome, AgentRunner, TurnOptions,
+    reconstruct_messages_from_records, validate_role_alternation, AgentError, AgentEvent,
+    AgentOutcome, AgentRunner, TurnOptions,
 };

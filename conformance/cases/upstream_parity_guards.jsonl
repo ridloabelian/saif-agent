@@ -1,0 +1,12 @@
+{"op":"redact_sensitive_text","name":"bearer_header","input":"Authorization: Bearer sk-live-secret-token-123456","expected":"Authorization: Bearer [REDACTED_SECRET]"}
+{"op":"redact_sensitive_text","name":"postgres_connstr","input":"Connected to postgres://saifuser:s3cr3tPass@db.internal:5432/saif","expected":"Connected to postgres://saifuser:[REDACTED_DB_SECRET]@db.internal:5432/saif"}
+{"op":"redact_sensitive_text","name":"anthropic_and_github_keys","input":"keys sk-ant-api03-abcdefghijklmno and ghp_0123456789abcdefghij1234","expected":"keys [REDACTED_API_KEY] and [REDACTED_API_KEY]"}
+{"op":"redact_sensitive_text","name":"clean_prose","input":"Normal status message without secrets (port 8787).","expected":"Normal status message without secrets (port 8787)."}
+{"op":"profile_boundary","name":"file_at_profile_home","scenario":"file_at_home","expect_ok":false}
+{"op":"profile_boundary","name":"tombstoned_profile_rejected","scenario":"tombstoned","expect_ok":false}
+{"op":"profile_boundary","name":"cleared_tombstone_allowed","scenario":"cleared","expect_ok":true}
+{"op":"upstream_classify","name":"plugin_catalog_noise","path":"plugin-catalog/iacg-board.yaml","status":"M","expected_class":"ignored_noise","expected_subsystem":null}
+{"op":"upstream_classify","name":"runtime_specific_updater","path":"hermes_cli/old_updater_main.py","status":"M","expected_class":"skip_runtime_specific","expected_subsystem":null}
+{"op":"upstream_classify","name":"redact_module_port","path":"agent/redact_db_url.py","status":"A","expected_class":"port_required","expected_subsystem":"profile_secrets"}
+{"op":"upstream_classify","name":"gateway_run_port","path":"gateway/run.py","status":"M","expected_class":"port_required","expected_subsystem":"gateway_platforms"}
+{"op":"upstream_classify","name":"web_router_port","path":"hermes_cli/web_routers/config_router.py","status":"M","expected_class":"port_required","expected_subsystem":"web_dashboard"}

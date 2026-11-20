@@ -26,6 +26,14 @@ pub enum ConfigError {
     },
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct McpServerEntry {
+    pub command: String,
+    pub args: Vec<String>,
+    pub env: BTreeMap<String, String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SaifConfig {
@@ -51,6 +59,7 @@ pub struct SaifConfig {
     pub cron: CronSection,
     pub plugins: PluginsSection,
     pub database: DatabaseSection,
+    pub mcp_servers: BTreeMap<String, McpServerEntry>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, JsonValue>,
 }
@@ -80,6 +89,7 @@ impl Default for SaifConfig {
             cron: CronSection::default(),
             plugins: PluginsSection::default(),
             database: DatabaseSection::default(),
+            mcp_servers: BTreeMap::new(),
             extra: BTreeMap::new(),
         }
     }
@@ -287,6 +297,8 @@ pub struct SkillsSection {
 pub struct GatewaySection {
     pub multiplex_profiles: Option<bool>,
     pub allow_all_users: bool,
+    pub allowed_users: Vec<String>,
+    pub deliver_outbound_webhooks: bool,
     pub session_hygiene_ratio: f64,
 }
 
@@ -295,6 +307,8 @@ impl Default for GatewaySection {
         Self {
             multiplex_profiles: None,
             allow_all_users: false,
+            allowed_users: Vec::new(),
+            deliver_outbound_webhooks: false,
             session_hygiene_ratio: 0.85,
         }
     }
@@ -465,6 +479,25 @@ pub fn load_effective_config(
     }
     expand_yaml_strings(&mut base, secrets);
     Ok(base)
+}
+
+/// Typed effective config loader merging `SaifConfig::default()` with `load_effective_config`
+/// (`${VAR}` expanded using profile-scoped `SecretScope` + `/etc/saif/config.yaml`).
+pub fn load_effective_saif_config(
+    home_dir: &Path,
+    secrets: Option<&SecretScope>,
+) -> Result<SaifConfig, ConfigError> {
+    let mut merged =
+        serde_yaml::to_value(SaifConfig::default()).map_err(|source| ConfigError::Yaml {
+            path: "<defaults>".to_string(),
+            source,
+        })?;
+    let effective = load_effective_config(home_dir, secrets)?;
+    merge_yaml_maps(&mut merged, effective);
+    serde_yaml::from_value(merged).map_err(|source| ConfigError::Yaml {
+        path: home_dir.join("config.yaml").display().to_string(),
+        source,
+    })
 }
 
 /// Atomic config persistence (`temp -> write_all -> sync_all -> rename`) so crashes never leave truncated YAML.

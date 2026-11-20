@@ -1,8 +1,8 @@
 # `saif-agent` Port & Conformance Map (`rust-anything` Methodology)
 
-- **Reference Oracle**: `NousResearch/hermes-agent` (`07f075c2`, Python + TypeScript)
+- **Reference Oracle**: `NousResearch/hermes-agent` (`32dbc1dcda22`, Python + TypeScript; tracked via `conformance/UPSTREAM_LOCK.json`)
 - **Target**: `saif-agent` (100% Pure-Rust Workspace + WASM Web UI + Tauri v2 Desktop)
-- **ADRs**: [DECISIONS.md](DECISIONS.md) | **Glossary**: [GLOSSARY.md](GLOSSARY.md) | **Anatomy**: [../docs/HERMES_ANATOMY.md](../docs/HERMES_ANATOMY.md)
+- **ADRs**: [DECISIONS.md](DECISIONS.md) | **Glossary**: [GLOSSARY.md](GLOSSARY.md) | **Anatomy**: [../docs/HERMES_ANATOMY.md](../docs/HERMES_ANATOMY.md) | **Sync**: [../docs/UPSTREAM_SYNC.md](../docs/UPSTREAM_SYNC.md)
 
 ## Wave Plan
 
@@ -58,26 +58,35 @@
 | Tauri v2 Desktop Bundling & Updater | `apps/saif-desktop/src-tauri` | done | `build.rs`, `ServeSidecarConfig`, detached `gateway run`, `verify_release_sha256` updater checksum check |
 | Voice (TTS/STT) & Media Gen | `tools/tts_tool_providers.py`, `image_generation_tool.py`, `plugins/video_gen/` | done | `text_to_speech` (44-byte RIFF PCM-to-WAV, 16 MiB cap, xAI speed clamp), `speech_to_text`, `image_generate`, `video_generate` |
 
+### Phases 1–7 — Full Runtime Wiring Parity & Permanent Upstream Sync Engine
+| Phase / Unit | Scope Delivered | Status | Notes |
+|---|---|---|---|
+| Phase 1: Persistence & Hydration | `SqliteStore::compact_session_history`, `reconstruct_messages_from_records` | done | Resumes `--session` across restarts with byte-stable `system[0]` & durable compaction |
+| Phase 2: Tool/Plugin/Config Wiring | `DelegateTaskTool`, `KanbanStore` ctx, `register_trusted_mcp_tools`, `PluginHookBridge`, `load_effective_saif_config` | done | `delegate_task` depth-gated, MCP + plugin hooks + `${VAR}` effective config active |
+| Phase 3: Providers & Streaming | `36` profiles, live `CredentialPool`/`auth.json` failover, Anthropic SSE | done | Auto-retry 401/403/429 pool rotation + real-time `text_delta`/`thinking_delta`/`input_json_delta` |
+| Phase 4: Cron & Multi-Profile Sync | Live `saif cron tick`, 30s gateway ticker, `profiles/<name>` migration, boundary guard | done | Executes due cron jobs with timeout + rejects file-at-home / tombstoned profile resurrection |
+| Phase 5: Live Gateway Hardening | `/stop` cancel, `/steer`, `/new`, FIFO queue drain, progressive Telegram edits, outbound HTTP | done | Cancel-safe `tokio::select!` in `AgentRunner`, concurrent Telegram polling & draft edits |
+| Phase 6: WASM UI & Live WS | Linear-memory FFI `saif_web_ui.wasm` (`224K`), CSP, 404 fallback, real-time WS events | done | `/assets/saif_web_ui.wasm` embedded & instantiated, `MessageDelta` streams before final RPC |
+| Phase 7: Upstream Parity Engine | `conformance/UPSTREAM_LOCK.json`, `saif upstream status/diff/ack`, `redact_sensitive_text`, `docs/UPSTREAM_SYNC.md` | done | Ephemeral `--filter=blob:none` subsystem diff classifier + 12 new golden oracle cases |
+
 ## Verification & Benchmark Summary
 
-Verified after final Waves 1–6 edits on `rustc 1.100.0` / `cargo 1.100.0` / `rust-anything v2.0.2`:
+Verified after final Phases 1–7 edits on `rustc 1.100.0` / `cargo 1.100.0`:
 
 - **Formatting & Static Analysis**:
   - `cargo fmt --all -- --check`: passed (exit `0`).
-  - `cargo clippy --workspace --all-targets -- -D warnings`: passed across all 16 workspace crates with `0` code warnings and `0` unused-dependency manifest warnings.
+  - `cargo clippy --workspace --all-targets -- -D warnings` + `apps/saif-web-ui`: passed across all workspace crates with `0` warnings.
   - Stub scan (`grep -rn --include="*.rs" "todo!\|unimplemented!" crates/ apps/`): `0` matches (`ZERO_STUBS`).
-- **Automated Test Suites (`cargo test --workspace` + `saif-web-ui`)**: **29 passed, 0 failed, 0 ignored**:
+- **Automated Test Suites (`cargo test --workspace` + `saif-web-ui`)**: **39 passed, 0 failed, 0 ignored**:
   - `saif-platform` unit tests: **4 passed**.
-  - `saif-conformance` `tests/oracle_replay.rs`: **9 passed** replaying **108 golden behavioral cases** across 9 `.jsonl` files recorded from `NousResearch/hermes-agent` (`cron_schedules.jsonl` [31], `patch_fuzzy.jsonl` [11], `skills_frontmatter.jsonl` [7], `prompt_injection_scan.jsonl` [7], `sqlite_fts_preview.jsonl` [5], `profile_paths.jsonl` [6], `codex_transport.jsonl` [14], `batch_sharegpt.jsonl` [9], `media_exec_helpers.jsonl` [18]).
+  - `saif-conformance` `tests/oracle_replay.rs`: **10 passed** replaying **120 golden behavioral cases** across 10 `.jsonl` files (`cron_schedules.jsonl` [31], `patch_fuzzy.jsonl` [11], `skills_frontmatter.jsonl` [7], `prompt_injection_scan.jsonl` [7], `sqlite_fts_preview.jsonl` [5], `profile_paths.jsonl` [6], `codex_transport.jsonl` [14], `batch_sharegpt.jsonl` [9], `media_exec_helpers.jsonl` [18], `upstream_parity_guards.jsonl` [12]).
   - `saif-conformance` `tests/invariants_e2e.rs`: **7 passed**.
-  - `saif-conformance` `tests/waves3_6_e2e.rs`: **6 passed** (mock Codex SSE & tool aliasing, AWS SigV4 + multiplex refusal + Bedrock Converse, `CredentialPool`, parallel `--resume` ShareGPT batch, Modal/Daytona/Vercel + mock WebSocket CDP vault + Python loopback `execute_code` RPC, 30-platform `GatewayMultiplexer` + `saif-web` REST + WAV/16 MiB media checks).
-  - `saif-cli` `tests/cli_e2e.rs`: **2 passed** (`saif doctor` verifying `24 built-in profiles`, `gateway platforms` verifying `30` lines, `gateway migrate --multiplex`, `gateway install-service`, `auth add`/`list`, `cron`, `kanban`, `profile`, `migrate --from-hermes --dry-run`).
+  - `saif-conformance` `tests/waves3_6_e2e.rs`: **6 passed**.
+  - `saif-conformance` `tests/phases1_7_e2e.rs`: **7 passed** (SQLite session hydration & durable compaction, `delegate_task` + Kanban + trusted MCP + plugin hooks, `36` providers + live `CredentialPool` failover + Anthropic SSE, multi-profile Hermes migration & boundary guard, `/stop`/queue drain/Telegram draft streaming, WASM asset + CSP + 404 + real-time WS streaming, `UpstreamLock` classifier).
+  - `saif-cli` `tests/cli_e2e.rs`: **4 passed** (`saif doctor` verifying `36 built-in profiles`, `cron tick` live execution, `upstream status/diff/ack`, `gateway`, `auth`, `mcp`, `kanban`, `profile`, `migrate`).
   - `apps/saif-web-ui` unit tests (`cargo test --manifest-path apps/saif-web-ui/Cargo.toml`): **1 passed** (`wasm_ui_terminal_buffer_and_tabs_work`).
 - **WebAssembly & Desktop Targets**:
-  - `cargo build --manifest-path apps/saif-web-ui/Cargo.toml --target wasm32-unknown-unknown --release`: passed (exit `0`), emitting `saif_web_ui.wasm` (`401` bytes).
+  - `cargo build --manifest-path apps/saif-web-ui/Cargo.toml --target wasm32-unknown-unknown --release`: passed (exit `0`), emitting `saif_web_ui.wasm` (`224K`, identical to embedded `crates/saif-web/assets/saif_web_ui.wasm`).
   - `apps/saif-desktop/src-tauri`: pure-Rust Tauri v2 shell (`build.rs`, `tauri.conf.json`, `src/main.rs`), excluded from headless Linux workspace build because `webkit2gtk` GUI libraries are not installed on this server.
-- **Release Binaries (`cargo build --release -p saif-cli`)**:
-  - `target/release/saif`: `13M`
-  - `target/release/saif-acp`: `10M`
 - **Cold Startup Baseline (`--version`, measured on Wave 1–2 release binary)**:
   - `./target/release/saif --version` (5 runs, isolated temp `SAIF_HOME`): median `2.51 ms` vs `/home/ridlo/.local/bin/hermes --version` (2 read-only runs): median `575.83 ms` (`229.4x` faster).

@@ -1,9 +1,11 @@
-use crate::guards::{BusyDecision, BusyMessageGuard};
+use crate::guards::{extract_steer_text, BusyDecision, BusyMessageGuard, ControlCommand};
 use crate::identity::{resolve_identity, RoutingIdentity};
 use crate::platforms::{
-    builtin_platform_specs, chunk_for_platform, get_platform_spec, parse_inbound_webhook,
+    build_outbound_request, builtin_platform_specs, chunk_for_platform, get_platform_spec,
+    parse_inbound_webhook,
 };
 use crate::streaming::{DeliveryAction, StreamDraftController};
+use reqwest::Client;
 use saif_config::{list_live_profiles, ProfileScope, SaifConfig};
 use saif_core::{AgentRunner, TurnOptions};
 use serde::{Deserialize, Serialize};
@@ -14,6 +16,7 @@ use std::fs;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
@@ -32,6 +35,7 @@ pub struct MultiplexOutcome {
     pub session_id: String,
     pub chunks: Vec<String>,
     pub delivery_action_kind: String,
+    pub outbound_dispatched: bool,
 }
 
 /// Hosts every profile inside one gateway process with fail-closed credential checks (`gateway/run.py`).
@@ -69,6 +73,10 @@ impl GatewayMultiplexer {
 
     pub fn slot_names(&self) -> Vec<String> {
         self.slots.keys().cloned().collect()
+    }
+
+    pub fn slots(&self) -> Vec<ProfileGatewaySlot> {
+        self.slots.values().cloned().collect()
     }
 
     /// Detect shared platform bot credentials across distinct profiles (`_adapter_credential_fingerprint`).
@@ -148,53 +156,107 @@ impl GatewayMultiplexer {
                     session_id: String::new(),
                     chunks: Vec::new(),
                     delivery_action_kind: "queued".to_string(),
+                    outbound_dispatched: false,
                 });
             }
             BusyDecision::ControlBypass(cmd) => {
+                let msg = {
+                    let mut guard = slot
+                        .guard
+                        .lock()
+                        .map_err(|_| "busy guard lock poisoned".to_string())?;
+                    match cmd {
+                        ControlCommand::Stop => {
+                            if guard.cancel_active(&identity.session_key) {
+                                "Stopped active turn.".to_string()
+                            } else {
+                                "No active turn running.".to_string()
+                            }
+                        }
+                        ControlCommand::New => {
+                            let gen = guard.reset_session(&identity.session_key);
+                            format!("Started fresh session (generation {gen}).")
+                        }
+                        ControlCommand::Steer => {
+                            let text = extract_steer_text(&ev.text).unwrap_or("");
+                            if !text.is_empty()
+                                && guard.send_steer(&identity.session_key, text.to_string())
+                            {
+                                "Steering active turn.".to_string()
+                            } else {
+                                "No active turn to steer.".to_string()
+                            }
+                        }
+                        ControlCommand::Status => format!(
+                            "Session {} | active={} | queued={}",
+                            guard.effective_session_id(&identity.session_key),
+                            guard.is_active(&identity.session_key),
+                            guard.queue_len(&identity.session_key)
+                        ),
+                        other => format!("Control acknowledged: {other:?}"),
+                    }
+                };
                 return Ok(MultiplexOutcome {
                     accepted: true,
                     queued_position: None,
                     identity,
                     session_id: String::new(),
-                    chunks: vec![format!("Control acknowledged: {cmd:?}")],
+                    chunks: vec![msg],
                     delivery_action_kind: "control_bypass".to_string(),
+                    outbound_dispatched: false,
                 });
             }
             BusyDecision::ExecuteImmediately => {}
         }
 
-        let scope = Arc::clone(&slot.profile);
-        let agent = slot.agent.clone();
-        let session_key = identity.session_key.clone();
-        let prompt_text = ev.text.clone();
-        let platform_name = ev.platform.clone();
-        let cwd_buf = cwd.to_path_buf();
+        let mut next_prompt = Some(ev.text.clone());
+        let mut last_outcome = None;
 
-        let turn_result = ProfileScope::run_scoped(scope, async move {
-            let opts = TurnOptions {
-                session_id: Some(session_key),
-                source: platform_name,
-                cwd: cwd_buf,
-                ..TurnOptions::default()
+        while let Some(prompt_text) = next_prompt {
+            let cancel = CancellationToken::new();
+            let (steer_tx, mut steer_rx) = mpsc::unbounded_channel();
+            let active_sid = {
+                let mut guard = slot
+                    .guard
+                    .lock()
+                    .map_err(|_| "busy guard lock poisoned".to_string())?;
+                guard.register_turn(&identity.session_key, cancel.clone(), Some(steer_tx));
+                guard.effective_session_id(&identity.session_key)
             };
-            agent
-                .run_conversation(
-                    &prompt_text,
-                    None,
-                    opts,
-                    None,
-                    CancellationToken::new(),
-                    None,
-                )
-                .await
-        })
-        .await;
 
-        if let Ok(mut guard) = slot.guard.lock() {
-            let _ = guard.mark_idle(&identity.session_key);
+            let scope = Arc::clone(&slot.profile);
+            let agent = slot.agent.clone();
+            let platform_name = ev.platform.clone();
+            let cwd_buf = cwd.to_path_buf();
+
+            let turn_result = ProfileScope::run_scoped(scope, async move {
+                let opts = TurnOptions {
+                    session_id: Some(active_sid),
+                    source: platform_name,
+                    cwd: cwd_buf,
+                    ..TurnOptions::default()
+                };
+                agent
+                    .run_conversation(&prompt_text, None, opts, None, cancel, Some(&mut steer_rx))
+                    .await
+            })
+            .await;
+
+            next_prompt = if let Ok(mut guard) = slot.guard.lock() {
+                if let Some(q) = guard.pop_next_queued(&identity.session_key) {
+                    Some(q)
+                } else {
+                    let _ = guard.mark_idle(&identity.session_key);
+                    None
+                }
+            } else {
+                None
+            };
+
+            last_outcome = Some(turn_result.map_err(|e| e.to_string())?);
         }
 
-        let outcome = turn_result.map_err(|e| e.to_string())?;
+        let outcome = last_outcome.ok_or_else(|| "missing turn outcome".to_string())?;
         let mut draft = StreamDraftController::new();
         let action = draft.finish(&outcome.final_response);
         let action_kind = match action {
@@ -204,6 +266,34 @@ impl GatewayMultiplexer {
             DeliveryAction::UpdateStream { .. } => "update_stream",
         }
         .to_string();
+
+        let mut outbound_dispatched = false;
+        let should_deliver = slot.config.gateway.deliver_outbound_webhooks
+            || payload
+                .get("deliver_outbound")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+        if should_deliver {
+            if let Ok(mut spec) =
+                build_outbound_request(&ev.platform, &slot.profile.secrets, &ev.chat_id, &action)
+            {
+                if let Some(override_url) = payload.get("outbound_url").and_then(|v| v.as_str()) {
+                    if slot.config.security.allow_private_urls
+                        || override_url.starts_with("https://")
+                    {
+                        spec.url = override_url.to_string();
+                    }
+                }
+                let client = Client::new();
+                let mut req = client.post(&spec.url).json(&spec.body);
+                for (k, v) in spec.headers {
+                    req = req.header(&k, v);
+                }
+                if let Ok(resp) = req.send().await {
+                    outbound_dispatched = resp.status().is_success();
+                }
+            }
+        }
 
         let max_chars = get_platform_spec(&ev.platform)
             .map(|s| s.max_chars)
@@ -217,6 +307,7 @@ impl GatewayMultiplexer {
             session_id: outcome.session_id,
             chunks,
             delivery_action_kind: action_kind,
+            outbound_dispatched,
         })
     }
 }

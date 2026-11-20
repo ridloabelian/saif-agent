@@ -28,10 +28,10 @@ impl SecretRedactor {
     }
 
     pub fn redact(&self, input: &str) -> String {
+        let mut out = saif_config::redact_sensitive_text(input);
         let Ok(guard) = self.secrets.lock() else {
-            return input.to_string();
+            return out;
         };
-        let mut out = input.to_string();
         for s in guard.iter() {
             if !s.is_empty() && out.contains(s.as_str()) {
                 out = out.replace(s.as_str(), "[REDACTED_VAULT_SECRET]");

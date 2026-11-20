@@ -162,6 +162,44 @@ impl SqliteStore {
         )?;
         Ok(())
     }
+
+    /// Atomically deactivate compacted history rows up to `max_compacted_id` and insert
+    /// a durable compaction summary row ordered strictly before any remaining active tail rows.
+    pub fn compact_session_history(
+        &self,
+        session_id: &str,
+        max_compacted_id: i64,
+        summary_content: &str,
+    ) -> Result<i64, PersistenceError> {
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|e| PersistenceError::Unavailable(e.to_string()))?;
+        let tx = conn.transaction()?;
+        tx.execute(
+            "UPDATE messages SET active = 0, compacted = 1 WHERE session_id = ?1 AND id <= ?2 AND active = 1",
+            params![session_id, max_compacted_id],
+        )?;
+        let min_tail_ts: Option<f64> = tx
+            .query_row(
+                "SELECT MIN(timestamp) FROM messages WHERE session_id = ?1 AND active = 1",
+                params![session_id],
+                |r| r.get(0),
+            )
+            .optional()?
+            .flatten();
+        let summary_ts = min_tail_ts
+            .map(|t| t - 0.001)
+            .unwrap_or_else(now_epoch_secs);
+        tx.execute(
+            "INSERT INTO messages(session_id, role, content, timestamp, active, compacted, display_kind)
+             VALUES (?1, 'user', ?2, ?3, 1, 0, 'compaction_summary')",
+            params![session_id, summary_content, summary_ts],
+        )?;
+        let row_id = tx.last_insert_rowid();
+        tx.commit()?;
+        Ok(row_id)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
