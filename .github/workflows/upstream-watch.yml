@@ -1,0 +1,65 @@
+name: Upstream Watch (NousResearch/hermes-agent)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 1 * * 1'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare UPSTREAM_LOCK.json against upstream HEAD
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LOCKED=$(jq -r .synced_commit conformance/UPSTREAM_LOCK.json)
+          REPO=$(jq -r .upstream_repo conformance/UPSTREAM_LOCK.json)
+          BRANCH=$(jq -r .tracked_branch conformance/UPSTREAM_LOCK.json)
+          REMOTE=$(git ls-remote "$REPO" "refs/heads/$BRANCH" | awk '{print $1}')
+
+          echo "Locked: $LOCKED"
+          echo "Remote: $REMOTE"
+
+          if [ -z "$REMOTE" ]; then
+            echo "Failed to resolve upstream HEAD" >&2
+            exit 1
+          fi
+
+          if [ "$LOCKED" = "$REMOTE" ]; then
+            echo "Already up to date at $LOCKED"
+            exit 0
+          fi
+
+          TITLE="[Upstream Sync] NousResearch/hermes-agent updates available"
+          BODY=$(cat <<EOF
+          Upstream \`NousResearch/hermes-agent\` (\`$BRANCH\`) has advanced past \`conformance/UPSTREAM_LOCK.json\`.
+
+          - **Locked SHA**: \`$LOCKED\`
+          - **Upstream HEAD**: \`$REMOTE\`
+          - **Compare**: https://github.com/NousResearch/hermes-agent/compare/${LOCKED}...${REMOTE}
+
+          ### How to Sync
+          \`\`\`bash
+          TMP_HOME=\$(mktemp -d)
+          SAIF_HOME="\$TMP_HOME" saif upstream status
+          SAIF_HOME="\$TMP_HOME" saif upstream diff --port-only
+          # Port changes + update tests + run quality gate
+          SAIF_HOME="\$TMP_HOME" saif upstream ack $REMOTE
+          rm -rf "\$TMP_HOME"
+          \`\`\`
+          EOF
+          )
+
+          EXISTING=$(gh issue list --repo "${{ github.repository }}" --state open --search "$TITLE in:title" --json number,title --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue edit "$EXISTING" --repo "${{ github.repository }}" --body "$BODY"
+          else
+            gh issue create --repo "${{ github.repository }}" --title "$TITLE" --body "$BODY"
+          fi

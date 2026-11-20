@@ -1,10 +1,16 @@
 use crate::schedule::{compute_next_run, parse_schedule, CronSchedule};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use uuid::Uuid;
+
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, Error)]
 pub enum CronError {
@@ -25,23 +31,41 @@ pub enum CronError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CronJob {
     pub id: String,
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub prompt: String,
     pub schedule: CronSchedule,
+    #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default)]
     pub repeat_remaining: Option<i64>,
+    #[serde(default)]
     pub script: Option<String>,
+    #[serde(default)]
     pub no_agent: bool,
+    #[serde(default)]
     pub workdir: Option<String>,
+    #[serde(default)]
     pub model: Option<String>,
+    #[serde(default)]
     pub provider: Option<String>,
+    #[serde(default)]
     pub created_at: String,
+    #[serde(default)]
     pub last_run_at: Option<String>,
+    #[serde(default)]
     pub next_run_at: Option<String>,
+    #[serde(default)]
     pub pending_slot: Option<String>,
+    #[serde(default)]
     pub last_status: Option<String>,
+    #[serde(default)]
     pub last_error: Option<String>,
+    #[serde(default)]
     pub deliver_targets: Vec<String>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -82,6 +106,10 @@ impl CronStore {
         let raw = fs::read_to_string(&self.jobs_file)?;
         if raw.trim().is_empty() {
             return Ok(Vec::new());
+        }
+        if raw.trim_start().starts_with('[') {
+            let jobs: Vec<CronJob> = serde_json::from_str(&raw)?;
+            return Ok(jobs);
         }
         let parsed: JobsFile = serde_json::from_str(&raw)?;
         Ok(parsed.jobs)
@@ -151,6 +179,7 @@ impl CronStore {
             last_status: None,
             last_error: None,
             deliver_targets: Vec::new(),
+            extra: BTreeMap::new(),
         };
         let mut jobs = self.load_jobs()?;
         jobs.push(job.clone());

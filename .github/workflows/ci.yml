@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check zero todo!/unimplemented! stubs
+        run: |
+          if grep -rn --include="*.rs" "todo!\|unimplemented!" crates/ apps/; then
+            exit 1
+          fi
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy workspace & WASM UI
+        run: |
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo clippy --manifest-path apps/saif-web-ui/Cargo.toml --all-targets -- -D warnings
+
+      - name: Test workspace & WASM UI
+        run: |
+          cargo test --workspace
+          cargo test --manifest-path apps/saif-web-ui/Cargo.toml
+
+      - name: Verify WASM asset parity
+        run: |
+          cargo build --manifest-path apps/saif-web-ui/Cargo.toml --target wasm32-unknown-unknown --release
+          cmp -s apps/saif-web-ui/target/wasm32-unknown-unknown/release/saif_web_ui.wasm crates/saif-web/assets/saif_web_ui.wasm

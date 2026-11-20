@@ -9,10 +9,10 @@ pub mod upstream;
 
 pub use config::{
     atomic_yaml_write, expand_env_placeholders, load_cli_config, load_config,
-    load_effective_config, load_effective_saif_config, AgentSection, AuxiliarySection,
-    AuxiliaryTaskConfig, CompressionSection, CronSection, DatabaseSection, DelegationSection,
-    DisplaySection, GatewaySection, McpServerEntry, MemorySection, PluginsSection, SaifConfig,
-    SecuritySection, SkillsSection, TerminalSection,
+    load_effective_config, load_effective_saif_config, normalize_hermes_yaml_compat, AgentSection,
+    AuxiliarySection, AuxiliaryTaskConfig, CompressionSection, CronSection, CustomProviderEntry,
+    DatabaseSection, DelegationSection, DisplaySection, GatewaySection, McpServerEntry,
+    MemorySection, PluginsSection, SaifConfig, SecuritySection, SkillsSection, TerminalSection,
 };
 pub use i18n::I18nCatalog;
 pub use migrate::{migrate_from_hermes, MigrationReport};

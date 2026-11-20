@@ -34,6 +34,19 @@ pub struct McpServerEntry {
     pub env: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomProviderEntry {
+    pub name: Option<String>,
+    pub base_url: Option<String>,
+    pub key_env: Option<String>,
+    pub api_key_env: Option<String>,
+    pub api_key: Option<String>,
+    pub api: Option<String>,
+    pub api_mode: Option<String>,
+    pub default_model: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SaifConfig {
@@ -42,6 +55,7 @@ pub struct SaifConfig {
     pub provider: String,
     pub base_url: Option<String>,
     pub api_mode: Option<String>,
+    pub providers: BTreeMap<String, CustomProviderEntry>,
     pub toolsets: Vec<String>,
     pub fallback_providers: Vec<String>,
     pub max_live_sessions: usize,
@@ -72,6 +86,7 @@ impl Default for SaifConfig {
             provider: String::new(),
             base_url: None,
             api_mode: None,
+            providers: BTreeMap::new(),
             toolsets: vec!["hermes-cli".to_string()],
             fallback_providers: Vec::new(),
             max_live_sessions: 16,
@@ -437,6 +452,145 @@ fn expand_yaml_strings(val: &mut serde_yaml::Value, secrets: Option<&SecretScope
     }
 }
 
+/// Normalize polymorphic upstream `~/.hermes/config.yaml` shapes into `SaifConfig`'s canonical YAML layout.
+pub fn normalize_hermes_yaml_compat(val: &mut serde_yaml::Value) {
+    let Some(root) = val.as_mapping_mut() else {
+        return;
+    };
+
+    let model_key = serde_yaml::Value::String("model".to_string());
+    let prov_key = serde_yaml::Value::String("provider".to_string());
+    let base_key = serde_yaml::Value::String("base_url".to_string());
+
+    if let Some(serde_yaml::Value::Mapping(m)) = root.get(&model_key).cloned() {
+        let extracted_model = m
+            .get(serde_yaml::Value::String("default".to_string()))
+            .or_else(|| m.get(serde_yaml::Value::String("name".to_string())))
+            .or_else(|| m.get(serde_yaml::Value::String("id".to_string())))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let extracted_prov = m
+            .get(serde_yaml::Value::String("provider".to_string()))
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let extracted_base = m
+            .get(serde_yaml::Value::String("base_url".to_string()))
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+
+        root.insert(model_key, serde_yaml::Value::String(extracted_model));
+        let top_prov_empty = root
+            .get(&prov_key)
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().is_empty())
+            .unwrap_or(true);
+        if top_prov_empty {
+            if let Some(p) = extracted_prov {
+                root.insert(prov_key, serde_yaml::Value::String(p));
+            }
+        }
+        let top_base_empty = root
+            .get(&base_key)
+            .map(|v| v.is_null() || v.as_str().map(|s| s.trim().is_empty()).unwrap_or(false))
+            .unwrap_or(true);
+        if top_base_empty {
+            if let Some(b) = extracted_base {
+                root.insert(base_key, serde_yaml::Value::String(b));
+            }
+        }
+    }
+
+    for list_key in ["fallback_providers", "toolsets"] {
+        let k = serde_yaml::Value::String(list_key.to_string());
+        if let Some(serde_yaml::Value::String(raw)) = root.get(&k).cloned() {
+            let seq = raw
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| serde_yaml::Value::String(s.to_string()))
+                .collect();
+            root.insert(k, serde_yaml::Value::Sequence(seq));
+        }
+    }
+
+    let mcp_key = serde_yaml::Value::String("mcp_servers".to_string());
+    if let Some(serde_yaml::Value::Mapping(servers)) = root.get_mut(&mcp_key) {
+        let args_key = serde_yaml::Value::String("args".to_string());
+        for (_, srv_val) in servers.iter_mut() {
+            if let Some(srv_map) = srv_val.as_mapping_mut() {
+                if let Some(serde_yaml::Value::String(raw)) = srv_map.get(&args_key).cloned() {
+                    let seq = raw
+                        .split_whitespace()
+                        .map(|s| serde_yaml::Value::String(s.to_string()))
+                        .collect();
+                    srv_map.insert(args_key.clone(), serde_yaml::Value::Sequence(seq));
+                }
+            }
+        }
+    }
+
+    let gw_key = serde_yaml::Value::String("gateway".to_string());
+    if let Some(serde_yaml::Value::Mapping(gw_map)) = root.get_mut(&gw_key) {
+        let allowed_key = serde_yaml::Value::String("allowed_users".to_string());
+        let tg_key = serde_yaml::Value::String("telegram".to_string());
+        let current_empty = gw_map
+            .get(&allowed_key)
+            .and_then(|v| v.as_sequence())
+            .is_some_and(Vec::is_empty);
+        if !gw_map.contains_key(&allowed_key) || current_empty {
+            if let Some(tg_allowed) = gw_map
+                .get(&tg_key)
+                .and_then(|v| v.as_mapping())
+                .and_then(|tm| tm.get(&allowed_key))
+                .cloned()
+            {
+                gw_map.insert(allowed_key.clone(), tg_allowed);
+            }
+        }
+        if let Some(raw_allowed) = gw_map.get(&allowed_key).cloned() {
+            let normalized: Vec<serde_yaml::Value> = match raw_allowed {
+                serde_yaml::Value::Sequence(seq) => seq
+                    .into_iter()
+                    .filter_map(yaml_scalar_to_string)
+                    .map(serde_yaml::Value::String)
+                    .collect(),
+                serde_yaml::Value::String(s) => s
+                    .split(',')
+                    .map(|p| p.trim())
+                    .filter(|p| !p.is_empty())
+                    .map(|p| serde_yaml::Value::String(p.to_string()))
+                    .collect(),
+                serde_yaml::Value::Number(n) => {
+                    vec![serde_yaml::Value::String(n.to_string())]
+                }
+                _ => Vec::new(),
+            };
+            gw_map.insert(allowed_key, serde_yaml::Value::Sequence(normalized));
+        }
+    }
+
+    let mem_key = serde_yaml::Value::String("memory".to_string());
+    if let Some(serde_yaml::Value::Mapping(mem_map)) = root.get_mut(&mem_key) {
+        let max_k = serde_yaml::Value::String("max_chars".to_string());
+        let lim_k = serde_yaml::Value::String("memory_char_limit".to_string());
+        if let Some(lim) = mem_map.get(&lim_k).cloned() {
+            mem_map.entry(max_k).or_insert(lim);
+        }
+    }
+}
+
+fn yaml_scalar_to_string(v: serde_yaml::Value) -> Option<String> {
+    match v {
+        serde_yaml::Value::String(s) => (!s.trim().is_empty()).then(|| s.trim().to_string()),
+        serde_yaml::Value::Number(n) => Some(n.to_string()),
+        serde_yaml::Value::Bool(b) => Some(b.to_string()),
+        _ => None,
+    }
+}
+
 /// Loader 1: `load_cli_config` — merges `SaifConfig::default()` with `<home>/config.yaml`.
 pub fn load_cli_config(home_dir: &Path) -> Result<SaifConfig, ConfigError> {
     load_config(home_dir)
@@ -458,6 +612,7 @@ pub fn load_config(home_dir: &Path) -> Result<SaifConfig, ConfigError> {
     if let Some(overlay) = read_yaml_value(managed)? {
         merge_yaml_maps(&mut merged, overlay);
     }
+    normalize_hermes_yaml_compat(&mut merged);
     serde_yaml::from_value(merged).map_err(|source| ConfigError::Yaml {
         path: user_path.display().to_string(),
         source,
@@ -494,6 +649,7 @@ pub fn load_effective_saif_config(
         })?;
     let effective = load_effective_config(home_dir, secrets)?;
     merge_yaml_maps(&mut merged, effective);
+    normalize_hermes_yaml_compat(&mut merged);
     serde_yaml::from_value(merged).map_err(|source| ConfigError::Yaml {
         path: home_dir.join("config.yaml").display().to_string(),
         source,

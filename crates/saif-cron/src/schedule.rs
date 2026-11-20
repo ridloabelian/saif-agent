@@ -23,9 +23,22 @@ pub enum ScheduleError {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CronSchedule {
-    Once { run_at: String, display: String },
-    Interval { minutes: i64, display: String },
-    Cron { expr: String, display: String },
+    Once {
+        #[serde(alias = "at")]
+        run_at: String,
+        #[serde(default)]
+        display: String,
+    },
+    Interval {
+        minutes: i64,
+        #[serde(default)]
+        display: String,
+    },
+    Cron {
+        expr: String,
+        #[serde(default)]
+        display: String,
+    },
 }
 
 #[derive(Debug, Clone)]

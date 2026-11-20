@@ -527,13 +527,31 @@ pub fn resolve_provider_route_for_home(
         .or_else(|| (!cfg.provider.trim().is_empty()).then_some(cfg.provider.as_str()))
         .unwrap_or_else(|| auto_detect_provider(secrets));
 
+    let custom_entry = cfg.providers.get(chosen_provider).or_else(|| {
+        let needle = chosen_provider.trim().to_ascii_lowercase();
+        cfg.providers
+            .iter()
+            .find(|(k, _)| k.to_ascii_lowercase() == needle)
+            .map(|(_, v)| v)
+    });
+
     let profile = get_provider_profile(chosen_provider).unwrap_or_else(|| {
         get_provider_profile("custom").unwrap_or_else(|| builtin_providers().remove(0))
     });
+    let provider_id = if custom_entry.is_some() {
+        chosen_provider.trim().to_ascii_lowercase()
+    } else {
+        profile.id.to_string()
+    };
 
     let base_url = base_url_override
         .filter(|s| !s.trim().is_empty())
         .or_else(|| cfg.base_url.as_deref().filter(|s| !s.trim().is_empty()))
+        .or_else(|| {
+            custom_entry
+                .and_then(|c| c.base_url.as_deref())
+                .filter(|s| !s.trim().is_empty())
+        })
         .unwrap_or(profile.base_url)
         .trim_end_matches('/')
         .to_string();
@@ -541,14 +559,31 @@ pub fn resolve_provider_route_for_home(
     let model = model_override
         .filter(|s| !s.trim().is_empty())
         .or_else(|| (!cfg.model.trim().is_empty()).then_some(cfg.model.as_str()))
+        .or_else(|| {
+            custom_entry
+                .and_then(|c| c.default_model.as_deref())
+                .filter(|s| !s.trim().is_empty())
+        })
         .unwrap_or(profile.default_model)
         .to_string();
 
-    let api_mode = match cfg.api_mode.as_deref() {
-        Some("anthropic") | Some("anthropic_messages") => ApiMode::AnthropicMessages,
-        Some("codex") | Some("codex_responses") => ApiMode::CodexResponses,
+    let custom_mode_str = custom_entry.and_then(|c| {
+        c.api_mode
+            .as_deref()
+            .or(c.api.as_deref())
+            .filter(|s| !s.trim().is_empty())
+    });
+    let api_mode = match cfg.api_mode.as_deref().or(custom_mode_str) {
+        Some("anthropic") | Some("anthropic_messages") | Some("anthropic-messages") => {
+            ApiMode::AnthropicMessages
+        }
+        Some("codex") | Some("codex_responses") | Some("openai-responses") => {
+            ApiMode::CodexResponses
+        }
         Some("bedrock") => ApiMode::Bedrock,
-        Some("chat_completions") | Some("openai") => ApiMode::ChatCompletions,
+        Some("chat_completions") | Some("openai") | Some("openai-completions") => {
+            ApiMode::ChatCompletions
+        }
         _ => profile.api_mode,
     };
 
@@ -557,33 +592,54 @@ pub fn resolve_provider_route_for_home(
         .unwrap_or_default()
         .as_secs();
 
+    let custom_env_var = custom_entry
+        .and_then(|c| c.key_env.as_deref().or(c.api_key_env.as_deref()))
+        .filter(|s| !s.trim().is_empty());
+
     let mut pooled_credential_id = None;
     let mut api_key = None;
     if let Some(home) = saif_home {
         let mut pool = CredentialPool::open(home);
-        if let Some(cred) = pool.select(profile.id, now_epoch) {
+        if let Some(cred) = pool.select(&provider_id, now_epoch) {
             pooled_credential_id = Some(cred.id);
             api_key = Some(cred.secret);
             let _ = pool.save();
         }
     }
     if api_key.is_none() {
-        api_key = secrets.get_secret(profile.env_var);
+        api_key = custom_entry
+            .and_then(|c| c.api_key.as_deref())
+            .filter(|s| !s.trim().is_empty())
+            .map(ToString::to_string);
+    }
+    if api_key.is_none() {
+        if let Some(env_name) = custom_env_var {
+            api_key = secrets.get_secret(env_name);
+        } else {
+            api_key = secrets.get_secret(profile.env_var);
+        }
     }
     if api_key.is_none() {
         if let Some(home) = saif_home {
-            api_key = read_auth_json_secret(home, profile.id);
+            api_key = read_auth_json_secret(home, &provider_id);
         }
     }
 
-    if profile.auth_type == AuthType::ApiKey
+    let expected_env = custom_env_var.unwrap_or(profile.env_var);
+    let requires_key = if custom_entry.is_some() {
+        custom_env_var.is_some()
+    } else {
+        profile.auth_type == AuthType::ApiKey
+    };
+
+    if requires_key
         && api_key.is_none()
         && !base_url.starts_with("http://127.0.0.1")
         && !base_url.starts_with("http://localhost")
     {
         return Err(ProviderError::MissingCredentials {
-            provider: profile.id.to_string(),
-            env_var: profile.env_var.to_string(),
+            provider: provider_id,
+            env_var: expected_env.to_string(),
         });
     }
 
@@ -608,7 +664,7 @@ pub fn resolve_provider_route_for_home(
         };
 
     Ok(ResolvedRoute {
-        provider_id: profile.id.to_string(),
+        provider_id,
         base_url: resolved_base,
         api_mode,
         model,

@@ -1184,3 +1184,84 @@ M\tweb/src/App.tsx
     assert!(md.contains("crates/saif-config/src/redact.rs"));
     assert!(!md.contains("plugin-catalog/iacg-board.yaml"));
 }
+
+#[test]
+fn real_world_hermes_polymorphic_config_and_cron_compat() {
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path().join("hermes_compat_home");
+    fs::create_dir_all(home.join("cron")).unwrap();
+
+    fs::write(home.join(".env"), "NINEROUTER_KEY=nr-secret-123\n").unwrap();
+    fs::write(
+        home.join("config.yaml"),
+        r#"
+model:
+  default: "glm-4.5"
+  provider: "ninerouter"
+providers:
+  ninerouter:
+    name: "NineRouter"
+    base_url: "https://nr.example.test/v1"
+    key_env: "NINEROUTER_KEY"
+    api: "openai-completions"
+fallback_providers: "openrouter, anthropic"
+mcp_servers:
+  google_workspace:
+    command: "npx"
+    args: "-y @gw/mcp"
+gateway:
+  telegram:
+    allowed_users: 123456
+"#,
+    )
+    .unwrap();
+
+    let scope = ProfileScope::for_root(home.clone(), false);
+    let cfg = load_effective_saif_config(&home, Some(&scope.secrets)).unwrap();
+    assert_eq!(cfg.model, "glm-4.5");
+    assert_eq!(cfg.provider, "ninerouter");
+    assert_eq!(cfg.fallback_providers, vec!["openrouter", "anthropic"]);
+    assert_eq!(
+        cfg.mcp_servers["google_workspace"].args,
+        vec!["-y", "@gw/mcp"]
+    );
+    assert_eq!(cfg.gateway.allowed_users, vec!["123456"]);
+
+    let route =
+        resolve_provider_route_for_home(Some(&home), &cfg, &scope.secrets, None, None, None)
+            .unwrap();
+    assert_eq!(route.provider_id, "ninerouter");
+    assert_eq!(route.base_url, "https://nr.example.test/v1");
+    assert_eq!(route.api_key.as_deref(), Some("nr-secret-123"));
+    assert_eq!(route.api_mode, ApiMode::ChatCompletions);
+
+    fs::write(
+        home.join("cron/jobs.json"),
+        r#"{
+  "jobs": [
+    {
+      "id": "job-real-1",
+      "name": "Morning Digest",
+      "prompt": "Summarize",
+      "schedule": { "kind": "cron", "expr": "0 9 * * *", "display": "0 9 * * *" },
+      "enabled": true,
+      "deliver": "telegram:123456",
+      "origin": { "platform": "telegram" },
+      "context_from": ["notes.md"]
+    }
+  ]
+}"#,
+    )
+    .unwrap();
+    let cron_store = saif_cron::CronStore::new(home.join("cron"));
+    let jobs = cron_store.load_jobs().unwrap();
+    assert_eq!(jobs.len(), 1);
+    assert_eq!(jobs[0].id, "job-real-1");
+    assert!(jobs[0].extra.contains_key("deliver"));
+    cron_store.save_jobs(&jobs).unwrap();
+    let reloaded = cron_store.load_jobs().unwrap();
+    assert_eq!(
+        reloaded[0].extra.get("deliver").and_then(|v| v.as_str()),
+        Some("telegram:123456")
+    );
+}
