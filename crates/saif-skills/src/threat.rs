@@ -132,6 +132,28 @@ pub fn scan_for_threats(content: &str, scope: ThreatScope) -> Vec<String> {
     findings
 }
 
+/// Scan raw file bytes so invalid UTF-8 padding or embedded NUL bytes cannot hide threat payloads.
+pub fn scan_bytes_for_threats(raw: &[u8], scope: ThreatScope) -> Vec<String> {
+    if raw.is_empty() {
+        return Vec::new();
+    }
+    let slice = &raw[..raw.len().min(MAX_SCAN_CHARS * 4)];
+    let mut findings = Vec::new();
+    if slice.contains(&0u8) {
+        findings.push("nul_byte".to_string());
+    }
+    if std::str::from_utf8(slice).is_err() {
+        findings.push("invalid_utf8_bytes".to_string());
+    }
+    let text = String::from_utf8_lossy(slice);
+    for finding in scan_for_threats(&text, scope) {
+        if !findings.contains(&finding) {
+            findings.push(finding);
+        }
+    }
+    findings
+}
+
 pub fn first_threat_message(content: &str, scope: ThreatScope) -> Option<String> {
     let findings = scan_for_threats(content, scope);
     let pid = findings.first()?;

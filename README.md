@@ -5,6 +5,7 @@
 <br/>
 
 [![CI](https://github.com/ridloabelian/saif-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/ridloabelian/saif-agent/actions/workflows/ci.yml)
+[![Release](https://github.com/ridloabelian/saif-agent/actions/workflows/release.yml/badge.svg)](https://github.com/ridloabelian/saif-agent/releases)
 [![Upstream Watch](https://github.com/ridloabelian/saif-agent/actions/workflows/upstream-watch.yml/badge.svg)](https://github.com/ridloabelian/saif-agent/actions/workflows/upstream-watch.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F97316?style=for-the-badge)](LICENSE)
 [![100% Pure Rust](https://img.shields.io/badge/100%25_Pure-Rust-CE422B?style=for-the-badge&logo=rust&logoColor=white)](#workspace-crates)
@@ -132,20 +133,23 @@ Measured directly on this repository's release builds (`--version` median across
 ## Quickstart
 
 ```bash
-# 1. Build optimized pure-Rust release binaries (`saif`, `saif-acp`)
+# Option A: Download prebuilt release binary (Linux x86_64 example)
+mkdir -p ~/.local/bin && curl -fsSL https://github.com/ridloabelian/saif-agent/releases/latest/download/saif-v0.1.0-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C ~/.local/bin
+
+# Option B: Build from source (`saif`, `saif-acp`)
 cargo build --release --bins
 
-# 2. Verify runtime readiness, providers, and active profile status
-./target/release/saif doctor
-./target/release/saif status
+# Verify runtime readiness, providers, and active profile status
+saif doctor
+saif status
 
-# 3. Run a single-shot prompt, launch the native TUI, or open the WASM web dashboard
-./target/release/saif -q "Summarize active cron jobs and recent sessions"
-./target/release/saif --tui
-./target/release/saif dashboard
+# Run a single-shot prompt, launch the native TUI, or open the WASM web dashboard
+saif -q "Summarize active cron jobs and recent sessions"
+saif --tui
+saif dashboard
 
-# 4. Preview non-destructive multi-profile migration from ~/.hermes -> ~/.saif
-./target/release/saif migrate --from-hermes --dry-run
+# Preview non-destructive multi-profile migration from ~/.hermes -> ~/.saif
+saif migrate --from-hermes --dry-run
 ```
 
 ## CLI Commands

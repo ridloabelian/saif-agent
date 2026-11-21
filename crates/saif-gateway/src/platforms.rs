@@ -379,6 +379,11 @@ pub fn parse_inbound_webhook(
             }
         }
         "discord" => {
+            if payload.get("webhook_id").is_some_and(|v| !v.is_null())
+                || payload.pointer("/author/bot") == Some(&Value::Bool(true))
+            {
+                return Ok(None);
+            }
             let chat_id = s_at(payload, "/channel_id").unwrap_or_default();
             let user_id = s_at(payload, "/author/id").unwrap_or_else(|| chat_id.clone());
             let text = s_at(payload, "/content").unwrap_or_default();
@@ -399,9 +404,23 @@ pub fn parse_inbound_webhook(
         }
         "slack" => {
             let ev = payload.get("event").unwrap_or(payload);
+            if ev.get("bot_id").is_some_and(|v| !v.is_null())
+                || s_at(ev, "/subtype").as_deref() == Some("bot_message")
+            {
+                return Ok(None);
+            }
             let chat_id = s_at(ev, "/channel").unwrap_or_default();
             let user_id = s_at(ev, "/user").unwrap_or_else(|| chat_id.clone());
-            let text = s_at(ev, "/text").unwrap_or_default();
+            let raw_text = s_at(ev, "/text").unwrap_or_default();
+            let forwarded = s_at(ev, "/attachments/0/text")
+                .or_else(|| s_at(ev, "/attachments/0/fallback"))
+                .unwrap_or_default();
+            let text = match (raw_text.is_empty(), forwarded.is_empty()) {
+                (true, true) => String::new(),
+                (true, false) => format!("[Forwarded]: {forwarded}"),
+                (false, true) => raw_text,
+                (false, false) => format!("{raw_text}\n[Forwarded]: {forwarded}"),
+            };
             let thread_id = s_at(ev, "/thread_ts");
             let is_dm = s_at(ev, "/channel_type").as_deref() == Some("im");
             if chat_id.is_empty() || text.is_empty() {
@@ -439,6 +458,9 @@ pub fn parse_inbound_webhook(
             }
         }
         "matrix" => {
+            if s_at(payload, "/content/msgtype").as_deref() == Some("m.notice") {
+                return Ok(None);
+            }
             let chat_id = s_at(payload, "/room_id").unwrap_or_default();
             let user_id = s_at(payload, "/sender").unwrap_or_else(|| chat_id.clone());
             let text = s_at(payload, "/content/body")

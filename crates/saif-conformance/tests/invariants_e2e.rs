@@ -138,6 +138,7 @@ fn plugin_catalog_enforces_sha40_and_removed_kill_list() {
         repo: "https://github.com/nous/good".into(),
         commit: "abc123".into(),
         description: "".into(),
+        docs_url: None,
     };
     assert!(validate_catalog_entry(&short_sha, &removed, false).is_err());
 
@@ -146,6 +147,7 @@ fn plugin_catalog_enforces_sha40_and_removed_kill_list() {
         repo: "git@github.com:evil/bad-plugin.git".into(),
         commit: "0123456789abcdef0123456789abcdef01234567".into(),
         description: "".into(),
+        docs_url: None,
     };
     assert!(validate_catalog_entry(&killed, &removed, false).is_err());
     assert!(validate_catalog_entry(&killed, &removed, true).is_ok());

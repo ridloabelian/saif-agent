@@ -69,6 +69,43 @@ pub fn validate_public_url(raw_url: &str, allow_private: bool) -> Result<reqwest
     Ok(url)
 }
 
+/// Validate a redirect target on every hop against SSRF rules and cross-origin credential leaks.
+pub fn validate_redirect_target(
+    next_url: &reqwest::Url,
+    previous_url: &reqwest::Url,
+    allow_private: bool,
+) -> Result<(), String> {
+    let same_origin = (
+        next_url.scheme(),
+        next_url.host_str(),
+        next_url.port_or_known_default(),
+    ) == (
+        previous_url.scheme(),
+        previous_url.host_str(),
+        previous_url.port_or_known_default(),
+    );
+    if !same_origin && (!next_url.username().is_empty() || next_url.password().is_some()) {
+        return Err("SSRF guard blocked credential-bearing cross-origin redirect".to_string());
+    }
+    validate_public_url(next_url.as_str(), allow_private).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Build a reqwest redirect policy that re-validates every redirect hop against SSRF guards.
+pub fn build_ssrf_safe_redirect_policy(allow_private: bool) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        if attempt.previous().len() >= 10 {
+            return attempt.error("too many redirects (max 10)");
+        }
+        if let Some(prev) = attempt.previous().last() {
+            if let Err(reason) = validate_redirect_target(attempt.url(), prev, allow_private) {
+                return attempt.error(reason);
+            }
+        }
+        attempt.follow()
+    })
+}
+
 pub async fn handle_web_extract(args: &Value, ctx: &ToolContext) -> Result<String, ToolError> {
     let url_raw = args
         .get("url")
@@ -79,6 +116,9 @@ pub async fn handle_web_extract(args: &Value, ctx: &ToolContext) -> Result<Strin
     let client = Client::builder()
         .timeout(Duration::from_secs(20))
         .user_agent("saif-agent/0.1")
+        .redirect(build_ssrf_safe_redirect_policy(
+            ctx.config.security.allow_private_urls,
+        ))
         .build()
         .map_err(|e| ToolError::Execution(e.to_string()))?;
 

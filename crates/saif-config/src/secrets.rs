@@ -30,6 +30,11 @@ pub const SENSITIVE_ENV_VARS: &[&str] = &[
     "GITHUB_TOKEN",
     "AWS_SECRET_ACCESS_KEY",
     "AWS_SESSION_TOKEN",
+    "HERMES_HOME",
+    "HERMES_MANAGED_DIR",
+    "OP_SERVICE_ACCOUNT_TOKEN",
+    "VAULT_TOKEN",
+    "BW_SESSION",
 ];
 
 pub const SENSITIVE_ENV_PREFIXES: &[&str] = &[
@@ -39,6 +44,9 @@ pub const SENSITIVE_ENV_PREFIXES: &[&str] = &[
     "TELEGRAM_",
     "DISCORD_",
     "SLACK_",
+    "HERMES_TUI_",
+    "SAIF_TUI_",
+    "A2A_",
 ];
 
 #[derive(Debug, Error)]
@@ -135,7 +143,7 @@ impl SecretScope {
                 child.insert(k, v);
                 continue;
             }
-            if is_sensitive_var(&k) {
+            if self.values.contains_key(&k) || is_sensitive_var(&k) {
                 continue;
             }
             child.insert(k, v);
@@ -199,4 +207,8 @@ fn is_sensitive_var(key: &str) -> bool {
         || upper.ends_with("_BOT_TOKEN")
         || upper.ends_with("_APP_SECRET")
         || upper.ends_with("_SECRET_KEY")
+        || upper.ends_with("_ACCESS_TOKEN")
+        || upper.ends_with("_AUTH_TOKEN")
+        || upper.ends_with("_SESSION_TOKEN")
+        || upper.ends_with("_BEARER_TOKEN")
 }

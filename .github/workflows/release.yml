@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-14
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binaries
+        run: cargo build --release --bins --target ${{ matrix.target }}
+
+      - name: Package release archive
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME:-dev}"
+          STAGE="stage-${{ matrix.target }}"
+          mkdir -p "$STAGE"
+          cp LICENSE NOTICE "$STAGE/"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${{ matrix.target }}/release/saif.exe" "$STAGE/"
+            cp "target/${{ matrix.target }}/release/saif-acp.exe" "$STAGE/"
+            (cd "$STAGE" && 7z a "../saif-${TAG}-${{ matrix.target }}.zip" .)
+          else
+            cp "target/${{ matrix.target }}/release/saif" "$STAGE/"
+            cp "target/${{ matrix.target }}/release/saif-acp" "$STAGE/"
+            chmod +x "$STAGE/saif" "$STAGE/saif-acp"
+            tar -czf "saif-${TAG}-${{ matrix.target }}.tar.gz" -C "$STAGE" .
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: saif-${{ matrix.target }}
+          path: saif-*.${{ matrix.archive }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

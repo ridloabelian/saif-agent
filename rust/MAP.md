@@ -77,12 +77,12 @@ Verified after final Phases 1–7 edits on `rustc 1.100.0` / `cargo 1.100.0`:
   - `cargo fmt --all -- --check`: passed (exit `0`).
   - `cargo clippy --workspace --all-targets -- -D warnings` + `apps/saif-web-ui`: passed across all workspace crates with `0` warnings.
   - Stub scan (`grep -rn --include="*.rs" "todo!\|unimplemented!" crates/ apps/`): `0` matches (`ZERO_STUBS`).
-- **Automated Test Suites (`cargo test --workspace` + `saif-web-ui`)**: **40 passed, 0 failed, 0 ignored**:
+- **Automated Test Suites (`cargo test --workspace` + `saif-web-ui`)**: **41 passed, 0 failed, 0 ignored**:
   - `saif-platform` unit tests: **4 passed**.
   - `saif-conformance` `tests/oracle_replay.rs`: **10 passed** replaying **120 golden behavioral cases** across 10 `.jsonl` files (`cron_schedules.jsonl` [31], `patch_fuzzy.jsonl` [11], `skills_frontmatter.jsonl` [7], `prompt_injection_scan.jsonl` [7], `sqlite_fts_preview.jsonl` [5], `profile_paths.jsonl` [6], `codex_transport.jsonl` [14], `batch_sharegpt.jsonl` [9], `media_exec_helpers.jsonl` [18], `upstream_parity_guards.jsonl` [12]).
   - `saif-conformance` `tests/invariants_e2e.rs`: **7 passed**.
   - `saif-conformance` `tests/waves3_6_e2e.rs`: **6 passed**.
-  - `saif-conformance` `tests/phases1_7_e2e.rs`: **8 passed** (SQLite session hydration & durable compaction, `delegate_task` + Kanban + trusted MCP + plugin hooks, `36` providers + live `CredentialPool` failover + Anthropic SSE, multi-profile Hermes migration & boundary guard, `/stop`/queue drain/Telegram draft streaming, WASM asset + CSP + 404 + real-time WS streaming, `UpstreamLock` classifier, real-world `~/.hermes` polymorphic config & lossless cron compat).
+  - `saif-conformance` `tests/phases1_7_e2e.rs`: **9 passed** (SQLite session hydration & durable compaction, `delegate_task` + Kanban + trusted MCP + plugin hooks, `36` providers + live `CredentialPool` failover + Anthropic SSE, multi-profile Hermes migration & boundary guard, `/stop`/queue drain/Telegram draft streaming, WASM asset + CSP + 404 + real-time WS streaming, `UpstreamLock` classifier, real-world `~/.hermes` polymorphic config & lossless cron compat, upstream security/SSRF/gateway sync guards).
   - `saif-cli` `tests/cli_e2e.rs`: **4 passed** (`saif doctor` verifying `36 built-in profiles`, `cron tick` live execution, `upstream status/diff/ack`, `gateway`, `auth`, `mcp`, `kanban`, `profile`, `migrate`).
   - `apps/saif-web-ui` unit tests (`cargo test --manifest-path apps/saif-web-ui/Cargo.toml`): **1 passed** (`wasm_ui_terminal_buffer_and_tabs_work`).
 - **WebAssembly & Desktop Targets**:

@@ -9,4 +9,6 @@ pub use frontmatter::{
     parse_frontmatter, validate_skill_description, SkillMetadata, SKILL_PROMPT_DESC_LIMIT,
 };
 pub use store::{SkillDocument, SkillError, SkillStore};
-pub use threat::{first_threat_message, scan_for_threats, ThreatScope, INVISIBLE_CHARS};
+pub use threat::{
+    first_threat_message, scan_bytes_for_threats, scan_for_threats, ThreatScope, INVISIBLE_CHARS,
+};

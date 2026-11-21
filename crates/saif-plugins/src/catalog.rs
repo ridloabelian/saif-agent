@@ -2,13 +2,36 @@ use crate::manifest::PluginError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CatalogEntry {
     pub name: String,
     pub repo: String,
     pub commit: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default)]
+    pub docs_url: Option<String>,
+}
+
+impl CatalogEntry {
+    /// Return `docs_url` only when it is a valid `https://` URL with a non-empty authority host.
+    pub fn sanitized_docs_url(&self) -> Option<&str> {
+        let raw = self.docs_url.as_deref()?.trim();
+        if raw.starts_with("https:///") {
+            return None;
+        }
+        let parsed = url::Url::parse(raw).ok()?;
+        if parsed.scheme() == "https"
+            && parsed.has_host()
+            && parsed.username().is_empty()
+            && parsed.password().is_none()
+            && parsed.host_str().is_some_and(|h| !h.is_empty())
+        {
+            Some(raw)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
