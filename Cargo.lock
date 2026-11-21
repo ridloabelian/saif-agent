@@ -2305,7 +2305,7 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "saif-acp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "saif-core",
@@ -2318,7 +2318,7 @@ dependencies = [
 
 [[package]]
 name = "saif-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -2348,7 +2348,7 @@ dependencies = [
 
 [[package]]
 name = "saif-config"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "dotenvy",
@@ -2363,7 +2363,7 @@ dependencies = [
 
 [[package]]
 name = "saif-conformance"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "axum",
@@ -2392,7 +2392,7 @@ dependencies = [
 
 [[package]]
 name = "saif-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures-util",
  "hex",
@@ -2415,7 +2415,7 @@ dependencies = [
 
 [[package]]
 name = "saif-cron"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "cron",
@@ -2429,7 +2429,7 @@ dependencies = [
 
 [[package]]
 name = "saif-gateway"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "hex",
@@ -2448,7 +2448,7 @@ dependencies = [
 
 [[package]]
 name = "saif-persistence"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "hex",
@@ -2463,7 +2463,7 @@ dependencies = [
 
 [[package]]
 name = "saif-platform"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "thiserror 2.0.21",
@@ -2471,7 +2471,7 @@ dependencies = [
 
 [[package]]
 name = "saif-plugins"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "serde",
@@ -2484,7 +2484,7 @@ dependencies = [
 
 [[package]]
 name = "saif-providers"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2505,7 +2505,7 @@ dependencies = [
 
 [[package]]
 name = "saif-rpc-contract"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2513,7 +2513,7 @@ dependencies = [
 
 [[package]]
 name = "saif-skills"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "flate2",
  "regex",
@@ -2528,7 +2528,7 @@ dependencies = [
 
 [[package]]
 name = "saif-tools"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -2559,7 +2559,7 @@ dependencies = [
 
 [[package]]
 name = "saif-tui"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "crossterm 0.28.1",
@@ -2579,7 +2579,7 @@ dependencies = [
 
 [[package]]
 name = "saif-web"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",

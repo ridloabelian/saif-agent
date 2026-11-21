@@ -134,7 +134,7 @@ Measured directly on this repository's release builds (`--version` median across
 
 ```bash
 # Option A: Download prebuilt release binary (Linux x86_64 example)
-mkdir -p ~/.local/bin && curl -fsSL https://github.com/ridloabelian/saif-agent/releases/latest/download/saif-v0.1.0-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C ~/.local/bin
+mkdir -p ~/.local/bin && curl -fsSL https://github.com/ridloabelian/saif-agent/releases/latest/download/saif-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C ~/.local/bin
 
 # Option B: Build from source (`saif`, `saif-acp`)
 cargo build --release --bins
