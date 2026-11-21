@@ -133,10 +133,16 @@ Measured directly on this repository's release builds (`--version` median across
 ## Quickstart
 
 ```bash
-# Option A: Download prebuilt release binary (Linux x86_64 example)
-mkdir -p ~/.local/bin && curl -fsSL https://github.com/ridloabelian/saif-agent/releases/latest/download/saif-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C ~/.local/bin
+# Option A: One-line installer (Linux / macOS, SHA-256 verified)
+curl -fsSL https://raw.githubusercontent.com/ridloabelian/saif-agent/main/install.sh | sh
 
-# Option B: Build from source (`saif`, `saif-acp`)
+# Option B: Windows PowerShell (SHA-256 verified)
+irm https://raw.githubusercontent.com/ridloabelian/saif-agent/main/install.ps1 | iex
+
+# Option C: Multi-arch Container (linux/amd64 & linux/arm64)
+docker run --rm -it -v ~/.saif:/data/.saif ghcr.io/ridloabelian/saif-agent:latest status
+
+# Option D: Build from source (`saif`, `saif-acp`)
 cargo build --release --bins
 
 # Verify runtime readiness, providers, and active profile status

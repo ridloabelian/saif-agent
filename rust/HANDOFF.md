@@ -2,7 +2,7 @@
 
 ## Current Status
 - **Completed Waves & Runtime Hardening**: Waves 1–6 + Phases 1–7 Runtime Parity & Upstream Sync COMPLETE (`saif-platform`, `saif-config`, `saif-persistence`, `saif-providers`, `saif-skills`, `saif-cron`, `saif-plugins`, `saif-tools`, `saif-core`, `saif-rpc-contract`, `saif-tui`, `saif-gateway`, `saif-web`, `saif-acp`, `saif-cli`, `saif-conformance`, `apps/saif-web-ui` WASM, and `apps/saif-desktop` Tauri v2).
-- **Behavioral Oracle & Upstream Sync**: `120` golden cases across `10` `.jsonl` files under `conformance/cases/*.jsonl`, plus live upstream lockfile `conformance/UPSTREAM_LOCK.json` and `saif upstream` (`status`, `diff`, `ack`) synced to `NousResearch/hermes-agent` (`242315ce571c`).
+- **Behavioral Oracle & Upstream Sync**: `120` golden cases across `10` `.jsonl` files under `conformance/cases/*.jsonl`, plus live upstream lockfile `conformance/UPSTREAM_LOCK.json` and `saif upstream` (`status`, `diff`, `ack`) synced to `NousResearch/hermes-agent` (`aeb5a071069d`).
 - **Verification**: `41/41` automated tests passing (`40` workspace + `1` `saif-web-ui`), `clippy -- -D warnings` + `fmt` clean with zero warnings, `ratatui 0.30.2` (`lru 0.18.5`, resolving Dependabot advisory), `wasm32-unknown-unknown --release` built (`224K` `saif_web_ui.wasm` embedded in `crates/saif-web/assets/`), GitHub Actions CI, multi-OS `release` & weekly `upstream-watch` workflows under `.github/workflows/`, release binaries `saif` & `saif-acp` installed cleanly into `~/.local/bin/`, and `~/.saif` provisioned via non-destructive multi-profile `saif migrate --from-hermes`. See [MAP.md](MAP.md) for full details.
 
 ## Operational & Upstream Sync Notes

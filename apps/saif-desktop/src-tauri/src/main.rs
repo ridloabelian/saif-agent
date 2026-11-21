@@ -6,6 +6,7 @@
 use sha2::{Digest, Sha256};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+use tauri::Manager;
 
 struct ServeHandle(Mutex<Option<Child>>);
 
@@ -73,7 +74,7 @@ fn libc_setsid() {
 
 fn main() {
     let cfg = ServeSidecarConfig {
-        listen_addr: "127.0.0.1:8787".to_string(),
+        listen_addr: "127.0.0.1:8788".to_string(),
         session_token: "desktop-local".to_string(),
     };
     let serve_child = Command::new("saif")

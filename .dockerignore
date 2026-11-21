@@ -1,0 +1,5 @@
+target/
+apps/*/target/
+.git/
+.github/
+docs/assets/

@@ -2,9 +2,9 @@
   "schema_version": 1,
   "upstream_repo": "https://github.com/NousResearch/hermes-agent.git",
   "tracked_branch": "main",
-  "synced_commit": "242315ce571cde721e717a544cf8ae6c343315cf",
-  "synced_at": "2026-11-21T02:05:56.930044724+00:00",
-  "synced_subject": "test(skills): pin that a skill_view dedup stub keeps the entry it points at",
+  "synced_commit": "aeb5a071069dbd85d85f2c8d44337f16df29d475",
+  "synced_at": "2026-11-21T10:52:31.599177378+00:00",
+  "synced_subject": "fix(telegram): a late plugin's group-99 handler runs ahead of the observer",
   "ignore_globs": [
     "plugin-catalog/**",
     "contributors/**",
@@ -63,7 +63,8 @@
     "web/package",
     "apps/desktop/package",
     "apps/desktop/electron",
-    "apps/shared/"
+    "apps/shared/",
+    "hermes_cli/runtime_state.py"
   ],
   "subsystems": [
     {

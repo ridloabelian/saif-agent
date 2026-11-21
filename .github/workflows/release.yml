@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -84,3 +85,43 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+
+      - name: Prepare multi-arch GHCR container context
+        run: |
+          mkdir -p ghcr-ctx/linux/amd64 ghcr-ctx/linux/arm64
+          tar -xzf dist/saif-x86_64-unknown-linux-gnu.tar.gz -C ghcr-ctx/linux/amd64
+          tar -xzf dist/saif-aarch64-unknown-linux-gnu.tar.gz -C ghcr-ctx/linux/arm64
+          cat <<'EOF' > ghcr-ctx/Dockerfile
+          FROM ubuntu:24.04
+          ARG TARGETPLATFORM
+          RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git \
+              && rm -rf /var/lib/apt/lists/* \
+              && useradd -m -u 10001 -s /bin/sh saif \
+              && mkdir -p /data/.saif && chown -R saif:saif /data
+          COPY ${TARGETPLATFORM}/saif /usr/local/bin/saif
+          COPY ${TARGETPLATFORM}/saif-acp /usr/local/bin/saif-acp
+          USER saif
+          ENV SAIF_HOME=/data/.saif
+          EXPOSE 8788 8642
+          ENTRYPOINT ["saif"]
+          CMD ["status"]
+          EOF
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ghcr-ctx
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/ridloabelian/saif-agent:latest
+            ghcr.io/ridloabelian/saif-agent:${{ github.ref_name }}
